@@ -1,8 +1,7 @@
+from os import times
 from fastapi import FastAPI, Body, Request, UploadFile, File, Form
 from typing import List, Optional
 from pydantic import BaseModel
-import shutil
-from PyPDF2 import PdfFileReader
 
 app = FastAPI()
 
@@ -27,7 +26,7 @@ class Document(BaseModel):
 
 @app.get("/")
 def Home():
-    return {"Data": "API running properly"}
+    return {"message": "API running properly"}
 
 # @app.post("/upload")
 # def UploadData(title: Item):
@@ -45,23 +44,44 @@ async def FormHandler(
     prop_email: str = Form(...), prop_year: int = Form(...),
     prop_type: str = Form(...), prop_sintaid: int = Form(...),
     document: UploadFile = File(...)  ):
-    # with open("./public/upload/"+document.filename, 'wb') as buffer:
-    #     shutil.copyfileobj(document.file, buffer)
-    # add parser pdf
-    #  open the file
-    # target_file = "./public/upload/PENELITIAN_6064836_5 (1).pdf"
-    print(document.file)
-    # pdf = PdfFileReader(open(document.file, 'rb', encoding='utf-8'))
+    import uuid
+    import fitz
+    import aiofiles
+    from TimeStamp import TimeStamp as ts
 
-    # get num of pages
-    num_pages = pdf.getNumPages()
-    print(num_pages)
+    # upload file
+    out_file = './public/upload/'+(uuid.uuid4().hex)+'.pdf'
+    async with aiofiles.open(out_file, 'wb') as output:
+        content = await document.read()
+        await output.write(content)
 
-    # extract text using loop
+    print("Upload file success@", ts.stamp())
+
+    # extracting file
+    doc = fitz.open(out_file)
     text = ""
-    for i in range(num_pages):
-        page = pdf.getPage(i)
-        text = text + " " + page.extractText()
+    for page in doc:
+        text = text + page.get_text("text") + "\n"  
     
+    print("Extracting document",document.filename, " success @", ts.stamp())
     print(len(text))
-    # print(prop_title, document.filename)
+    # preprocessing text
+    from DataProcessing import DataProcessing
+
+    DataProcessor = DataProcessing()
+    splitted_doc = DataProcessor.splitDocument(text)
+    splitted_doc.insert(0,  {
+        "chapter": "JUDUL",
+        "text": prop_title
+    })
+
+    result = DataProcessor.preprocessingText(splitted_doc)
+
+
+    response = {
+        "message": "success",
+        "status": 200,
+        "data": result
+    }
+    return response
+

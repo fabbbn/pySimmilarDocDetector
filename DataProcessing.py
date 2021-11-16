@@ -84,3 +84,48 @@ class DataProcessing:
             "before": tokens,
             "after" : stemmed
         })
+
+
+    def preprocessingText(self, splitted):
+        cleaned = []
+        casefold = []
+        tokenized = []
+        swremoved = []
+        stemmed = []
+        for part in splitted:
+            temp = self.cleaningText(part['text'])
+            cleaned.append({
+                "title":part['chapter'],
+                "content": temp
+            })
+            temp = self.casefoldingText(temp['after'])
+            casefold.append({
+                "title":part['chapter'],
+                "content": temp
+            })
+            temp = self.tokenizeText(temp['after'])
+            tokenized.append({
+                "title":part['chapter'],
+                "content": temp
+            })
+            temp = self.stopwordRemoval(temp['after'])
+            swremoved.append({
+                "title":part['chapter'],
+                "content": temp
+            })
+            temp = self.stemmingTokens(temp['after'])
+            stemmed.append({
+                "title":part['chapter'],
+                "content": temp
+            })
+
+        return({
+            "Bagian Dokumen": splitted,
+            "Hasil Pra-pengolahan Teks": {
+                "Cleaning" : cleaned,
+                "Case Folding": casefold,
+                "Tokenisasi": tokenized,
+                "Stopword Removal": swremoved,
+                "Stemming": stemmed
+            }
+        })
