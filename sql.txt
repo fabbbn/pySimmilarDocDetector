@@ -1,0 +1,54 @@
+tabel yang akan dibuat:
+create table Documents (
+    documentID VARCHAR(255) PRIMARY KEY NOT NULL
+    // metadata
+    path VARCHAR(255) NOT NULL
+);
+create table Tokens (
+    TokenId VARCHAR(255) PRIMARY KEY NOT NULL
+    Term VARCHAR(255) NOT NULL UNIQUE
+    Frequency INT NOT NULL
+    DocOccurence INT NOT NULL
+)
+// adding new documents occurence inside database (tokens/bag of words)
+// https://chartio.com/resources/tutorials/how-to-insert-if-row-does-not-exist-upsert-in-mysql/
+// https://docs.actian.com/psql/psqlv13/index.html#page/sqlref%2Fsqlref.INSERT.htm%23ww2519864
+INSERT INTO subs
+  (subs_name, subs_email, subs_birthday)
+VALUES
+  (?, ?, ?)
+ON DUPLICATE KEY UPDATE
+  subs_name     = VALUES(subs_name),
+  subs_birthday = VALUES(subs_birthday);
+if exists(SELECT * from Student where FirstName='Akhil' and LastName='Mittal')            
+BEGIN            
+ update Student set FirstName='Anu' where FirstName='Akhil'  
+End                    
+else            
+begin  
+insert into Student values(1,'Akhil','Mittal',28,'Male',2006,'Noida','Tenth','LFS','Delhi')  
+end 
+
+INSERT INTO Tokens
+    (Term, Frequency,  DocOccurence)
+VALUES
+    ('$term', '$freq', '$occurs')
+ON DUPLICATE KEY UPDATE
+    DocOccurence = values(
+        select (DocOccurence+'$occurs') from Tokens where Term='$term'
+    ),
+    Frequency = values(
+        select (Frequency+'$freq') from Tokens where Term='$term'
+    )
+
+update [OrderDetails] set quantity = (
+select Quantity+1 from OrderDetails where OrderDetailID=1
+) where OrderDetailID=1;
+
+update Tokens set DocOccurence = (
+    select (DocOccurence+'$n') from Tokens where TokenID='$id'
+) where TokenID='$id';
+
+update Tokens set Frequency = (
+    select (Frequency+'$n') from Tokens where TokenID='$id' //bisa gunakan nama token itu sendiri atau id
+) where TokenID='$id';

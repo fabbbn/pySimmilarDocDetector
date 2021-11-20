@@ -9,36 +9,37 @@ tokenized = []
 swremoved = []
 stemmed = []
 splitted = dp.splitDocument(text)
-for part in splitted:
-    temp = dp.cleaningText(part['text'])
-    cleaned.append({
-        "title":part['chapter'],
-        "content": temp
-    })
-    temp = dp.casefoldingText(temp['after'])
-    casefold.append({
-        "title":part['chapter'],
-        "content": temp
-    })
-    temp = dp.tokenizeText(temp['after'])
-    tokenized.append({
-        "title":part['chapter'],
-        "content": temp
-    })
-    temp = dp.stopwordRemoval(temp['after'])
-    swremoved.append({
-        "title":part['chapter'],
-        "content": temp
-    })
-    temp = dp.stemmingTokens(temp['after'])
-    stemmed.append({
-        "title":part['chapter'],
-        "content": temp
-    })
+
+# for part in splitted:
+#     temp = dp.cleaningText(part['text'])
+#     cleaned.append({
+#         "title":part['chapter'],
+#         "content": temp
+#     })
+#     temp = dp.casefoldingText(temp['after'])
+#     casefold.append({
+#         "title":part['chapter'],
+#         "content": temp
+#     })
+#     temp = dp.tokenizeText(temp['after'])
+#     tokenized.append({
+#         "title":part['chapter'],
+#         "content": temp
+#     })
+#     temp = dp.stopwordRemoval(temp['after'])
+#     swremoved.append({
+#         "title":part['chapter'],
+#         "content": temp
+#     })
+#     temp = dp.stemmingTokens(temp['after'])
+#     stemmed.append({
+#         "title":part['chapter'],
+#         "content": temp
+#     })
 
 
-print(cleaned)
-print(casefold)
-print(tokenized)
-print(swremoved)
-print(stemmed)
+# print(cleaned)
+# print(casefold)
+# print(tokenized)
+# print(swremoved)
+# print(stemmed)
