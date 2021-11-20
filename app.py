@@ -1,7 +1,5 @@
 from os import times
-
 from sqlalchemy.sql.schema import ForeignKey
-
 from fastapi import FastAPI, Body, Request, UploadFile, File, Form
 from fastapi.responses import ORJSONResponse, RedirectResponse
 from typing import List, Optional, Text
@@ -30,6 +28,23 @@ document = sqlalchemy.Table(
     sqlalchemy.Column("document_id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
     sqlalchemy.Column("document_path", sqlalchemy.Text, nullable=False),
     sqlalchemy.Column("document_filename", sqlalchemy.String, nullable=False)
+)
+document_part = sqlalchemy.Table(
+    "document_part",
+    metadata,
+    sqlalchemy.Column("document_part_id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("document_part_path", sqlalchemy.Text, nullable=False),
+    sqlalchemy.Column("document_part_filename", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("document_part_name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("doc_id", sqlalchemy.Integer, ForeignKey('document.document_id'))
+)
+bag_of_words = sqlalchemy.Table(
+    "bag_of_words",
+    metadata,
+    sqlalchemy.Column("token_id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
+    sqlalchemy.Column("token", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("frequency", sqlalchemy.Integer, nullable=False),
+    sqlalchemy.Column("document_occurence", sqlalchemy.Integer, nullable=False)
 )
 engine = sqlalchemy.create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}
@@ -60,6 +75,11 @@ class Proposal(BaseModel):
     proposal_sintaid: int
     proposal_doc_id: int
 
+class BagOfWords(BaseModel):
+    token_id: int
+    token: str
+    frequency: int
+    document_occurence: int
 
 @app.on_event("startup")
 async def startup():
@@ -119,12 +139,12 @@ async def FormHandler(
     await database.execute(insertPropQuery)
     
     # redirect to extraction route
-    return ({
-        "message": "Unggah dokumen berhasil",
-        "doc_id" : doc_id
-    })
-    # url= '/generate-data/document/'+str(doc_id)
-    # return RedirectResponse(url)
+    # return ({
+    #     "message": "Unggah dokumen berhasil",
+    #     "doc_id" : doc_id
+    # })
+    url= '/generate-data/document/'+str(doc_id)
+    return RedirectResponse(url)
 
 
 # @app.post("/generate-data/document/{doc_id}", response_model=Document)
@@ -137,7 +157,6 @@ async def DataGeneration(doc_id: int):
     print(prop[1])
     # extracting file
     import fitz
-    import aiofiles
     from TimeStamp import TimeStamp as ts
 
     docs = fitz.open(doc[1])
@@ -157,24 +176,71 @@ async def DataGeneration(doc_id: int):
     })
 
     result = DataProcessor.preprocessingText(splitted_doc)
-    return ({
-        "message" : "Pemrosesan Dokumen menjadi data siap olah berhasil",
-        "result": result
-    })
+
+    # save every parts' pre processing results
+    import re
+    tokens = result["Hasil Pra-pengolahan Teks"]["Stemming"]
+    for token in tokens:
+        # save into .txt
+        writes=""
+        filename = "{0}_{1}.txt".format(re.sub(r'.pdf', '', doc[2]), token['title'])
+        file_path = './chapter/'+filename
+        
+        with open(file_path, 'w') as file:
+            writes = writes + (" ".join((token['content'])))
+            file.write(writes)
+        file.close()
+
+        # insert document_parts into database
+        insertQuery = document_part.insert().values(
+            document_part_path = file_path,
+            document_part_filename = filename,
+            document_part_name = token['title'],
+            doc_id = doc_id
+        )
+        await database.execute(insertQuery)
+
+        print("Saving splitted document {0} success @ {1}".format(filename, ts.stamp()))
+
+    # return ({
+    #     "message" : "Pemrosesan Dokumen menjadi data siap olah berhasil",
+    #     "result": result
+    # })
 
     # redirect to vectorization route
-    # url= '/vectorize-data/document/'+str(doc_id)
-    # return RedirectResponse(url)
+    url= '/vectorize-data/document/'+str(doc_id)
+    return RedirectResponse(url)
 
-    
-    
+def generateDictioonary(keys, values):
+    return {keys[i]: values[i] for i in range(len(keys))}
+
 
 @app.post("/vectorize-data/document/{doc_id}")
 async def VectorizeDocument(doc_id: int):
-    # from Vectorizer import Vectorizer
-    # vectorizer = Vectorizer()
-    # tfs = vectorizer.tfCounter(result["Hasil Pra-pengolahan Teks"]["Stemming"])
+    query = document_part.select().where(document_part.c.doc_id == doc_id)
+    docs = await database.fetch_all(query)
+    print(docs)
+    query = bag_of_words.select()
+    bow = await database.fetch_all(query)
+    print(bow)
+    tokens = []
+    for row in docs:
+        with open(row[1], 'r') as f:
+            tokens.append(str(f.read().strip()).split(" "))    
     
+    
+    from Vectorizer import Vectorizer
+    vectorizer = Vectorizer()
+    result = vectorizer.tfCounter(tokens)
+    
+    # for term, freq in result['bow'].items():
+    #     insertWordQuery = bag_of_words.insert().values(
+    #         token=term,
+    #         frequency=freq
+    #     )
+    #     insertWordQuery.on_duplicate_key_update(
+
+    #     )
     # i=0
     # for dictionary in tfs:
     #     with open('./chapter/'+fname+'_'+splitted_doc[i]["chapter"]+'.csv', 'w') as f:
@@ -195,4 +261,4 @@ async def VectorizeDocument(doc_id: int):
     #     "data": result
     # }
     # return [response]
-    print(doc_id)
+    # print(doc_id)

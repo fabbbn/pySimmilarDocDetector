@@ -1,5 +1,6 @@
 import math
-
+# import sqilte3
+# DB_NAME = "d.db"
 class Vectorizer:
     pass
 
@@ -7,28 +8,37 @@ class Vectorizer:
         # count term frequency for every chapters = dictionary
         tfs = []
         bag_of_words = {}
+        # doc_occurence = {}
         for part in iterable_parts:
             tf = {}
-            for token in part['content']['after']:
+            for token in part:
                 if token in tf:
                     tf[token]+=1
                 else:
                     tf[token]=1
+                    doc_occurence[token]
 
                 if token in bag_of_words:
                     bag_of_words[token]+=1
                 else:
                     bag_of_words[token]=1
+                    # if token in doc_occurence:
+                    #     doc_occurence[token]
+
                 
             tfs.append(tf)
             print(len(tf))
+
         # save each dictionary
         # for dictionary in tfs:
             # saving process (query)
         #     for term, freq in dictionary.items():
         #         print("\"{0}\" = {1} word".format(term, freq))
         # return result
-        return tfs
+        return {
+            "tf_per_part": tfs,
+            "bow": bag_of_words
+        }
 
 
     def TfIdf(self, iterable_parts, config='manning'):

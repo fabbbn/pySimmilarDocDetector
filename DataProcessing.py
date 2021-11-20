@@ -41,24 +41,15 @@ class DataProcessing:
         cleaned = re.sub(r'[^\w\s]', ' ', text)
         cleaned = re.sub(r'\d+\s', ' ', cleaned)
         cleaned = re.sub(r'\s{1,}', ' ', cleaned)
-        return ({
-            "before": text,
-            "after" : cleaned.strip()
-        })
+        return ( cleaned.strip() )
 
     
     def casefoldingText(self, text):
-        return ({
-            "before": text,
-            "after": text.lower()
-        })
+        return ( text.lower() )
 
     
     def tokenizeText(self, text):
-        return ({
-            "before": text,
-            "after": text.split(" ")
-        })
+        return ( text.split(" ") )
 
     
     def stopwordRemoval(self, tokens):
@@ -67,10 +58,7 @@ class DataProcessing:
 
         # Kalimat
         swremoved = stopword.remove(" ".join(tokens))
-        return({
-            "before": tokens,
-            "after": swremoved.split(" ")
-        })
+        return( swremoved.split(" ") )
             
 
     def stemmingTokens(self, tokens):
@@ -80,10 +68,7 @@ class DataProcessing:
         # stemming process
         for token in tokens:
             stemmed.append(stemmer.stem(token))
-        return ({
-            "before": tokens,
-            "after" : stemmed
-        })
+        return ( stemmed )
 
 
     def preprocessingText(self, splitted):
@@ -98,22 +83,22 @@ class DataProcessing:
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.casefoldingText(temp['after'])
+            temp = self.casefoldingText(temp)
             casefold.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.tokenizeText(temp['after'])
+            temp = self.tokenizeText(temp)
             tokenized.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.stopwordRemoval(temp['after'])
+            temp = self.stopwordRemoval(temp)
             swremoved.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.stemmingTokens(temp['after'])
+            temp = self.stemmingTokens(temp)
             stemmed.append({
                 "title":part['chapter'],
                 "content": temp

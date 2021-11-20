@@ -1,0 +1,8 @@
+-- SQLite
+-- delete from document_part;    
+-- delete from sqlite_sequence where name='document_part';
+-- delete from proposal;    
+-- delete from sqlite_sequence where name='proposal';
+-- delete from document;    
+-- delete from sqlite_sequence where name='document';
+-- insert or replace into tokens (token, frequency) values ("hello", 5) on conflict(token) do update set frequency = (select frequency from tokens where token=excluded.token)+excluded.frequency;
