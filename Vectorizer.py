@@ -1,14 +1,11 @@
 import math
-# import sqilte3
-# DB_NAME = "d.db"
+import pandas as pd
 class Vectorizer:
     pass
 
-    def tfCounter(self, iterable_parts):
-        # count term frequency for every chapters = dictionary
+    def tfCounter(self, iterable_parts, bag_of_words):
+        # count term frequency for every chapters = array of dataframes
         tfs = []
-        bag_of_words = {}
-        # doc_occurence = {}
         for part in iterable_parts:
             tf = {}
             for token in part:
@@ -16,32 +13,36 @@ class Vectorizer:
                     tf[token]+=1
                 else:
                     tf[token]=1
-                    doc_occurence[token]
-
-                if token in bag_of_words:
-                    bag_of_words[token]+=1
-                else:
-                    bag_of_words[token]=1
-                    # if token in doc_occurence:
-                    #     doc_occurence[token]
-
-                
-            tfs.append(tf)
-            print(len(tf))
+            dictionary = {
+                'token': tf.keys(),
+                'freq': tf.values(),
+                'occur': list(1 for i in range(len(tf.items())))
+            }
+            temp = pd.DataFrame.from_dict(dictionary)
+            tfs.append(temp)
+                # if token in bag_of_words:
+                #     bag_of_words.freq+=1
+                # else:
+                #     bag_of_words.append({''})
+                #     # if token in doc_occurence:
+                #     #     doc_occurence[token]
+            
+            # print()
+            # print(len(tf))
 
         # save each dictionary
         # for dictionary in tfs:
             # saving process (query)
         #     for term, freq in dictionary.items():
         #         print("\"{0}\" = {1} word".format(term, freq))
-        # return result
-        return {
-            "tf_per_part": tfs,
-            "bow": bag_of_words
-        }
+        return tfs
+        # return {
+        #     "tf_per_part": tfs
+        #     "bow": bag_of_words
+        # }
 
 
-    def TfIdf(self, iterable_parts, config='manning'):
+    def TfIdf(self, iterable_parts, bow, config='manning'):
         tfidfs = []
         # query all bag of words => bow
         # SELECT Term as term, Frequency as N, DocOccurence as df from BagOfWords

@@ -6,3 +6,4 @@
 -- delete from document;    
 -- delete from sqlite_sequence where name='document';
 -- insert or replace into tokens (token, frequency) values ("hello", 5) on conflict(token) do update set frequency = (select frequency from tokens where token=excluded.token)+excluded.frequency;
+-- insert into bag_of_words (token, frequency, document_occuresnce) values ("broken", 5, 2);

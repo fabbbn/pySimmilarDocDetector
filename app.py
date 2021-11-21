@@ -6,6 +6,8 @@ from typing import List, Optional, Text
 from pydantic import BaseModel
 import databases
 import sqlalchemy
+import re
+import pandas as pd
 
 DATABASE_URL = "sqlite:///./docs_similarity_cbr.db"
 database = databases.Database(DATABASE_URL)
@@ -178,7 +180,7 @@ async def DataGeneration(doc_id: int):
     result = DataProcessor.preprocessingText(splitted_doc)
 
     # save every parts' pre processing results
-    import re
+    
     tokens = result["Hasil Pra-pengolahan Teks"]["Stemming"]
     for token in tokens:
         # save into .txt
@@ -219,10 +221,11 @@ def generateDictioonary(keys, values):
 async def VectorizeDocument(doc_id: int):
     query = document_part.select().where(document_part.c.doc_id == doc_id)
     docs = await database.fetch_all(query)
-    print(docs)
+    # print(docs)
     query = bag_of_words.select()
-    bow = await database.fetch_all(query)
-    print(bow)
+    bow = pd.DataFrame(await database.fetch_all(query), columns=['id','token', 'freq', 'occur'])
+    del bow['id']
+    # print(bow)
     tokens = []
     for row in docs:
         with open(row[1], 'r') as f:
@@ -231,8 +234,12 @@ async def VectorizeDocument(doc_id: int):
     
     from Vectorizer import Vectorizer
     vectorizer = Vectorizer()
-    result = vectorizer.tfCounter(tokens)
+    result = vectorizer.tfCounter(tokens, bow)
     
+    for i in range(len(docs)):
+        filepath = (re.sub(r'.txt', '.csv', docs[i][1]))
+        filepath = (re.sub(r'/chapter/', '/grouped-tf/', filepath))
+        result[i].to_csv(filepath, index=False)
     # for term, freq in result['bow'].items():
     #     insertWordQuery = bag_of_words.insert().values(
     #         token=term,
