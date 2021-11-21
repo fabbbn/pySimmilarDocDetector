@@ -1,4 +1,5 @@
 from os import times
+from sqlalchemy.sql import text as sql_txt
 from sqlalchemy.sql.schema import ForeignKey
 from fastapi import FastAPI, Body, Request, UploadFile, File, Form
 from fastapi.responses import ORJSONResponse, RedirectResponse
@@ -226,20 +227,42 @@ async def VectorizeDocument(doc_id: int):
     bow = pd.DataFrame(await database.fetch_all(query), columns=['id','token', 'freq', 'occur'])
     del bow['id']
     # print(bow)
-    tokens = []
-    for row in docs:
-        with open(row[1], 'r') as f:
-            tokens.append(str(f.read().strip()).split(" "))    
-    
-    
     from Vectorizer import Vectorizer
     vectorizer = Vectorizer()
+    tokens = []
+    for row in docs:
+        tokens.append(vectorizer.tfGenerator(row[1])) 
+    
+    # print(tokens[1])
+    nbow = pd.concat(tokens, ignore_index=True)
+
+    nbow = nbow.groupby(by=['token']).agg({'freq':'sum', 'occur':'sum'}).reset_index()
+    # print(nbow)
+    # df = pd.DataFrame([tokens, list(1 for i in range(len(tokens)))], columns=['token', 'freq'])
+    with engine.connect() as con:
+        for index, row in nbow.iterrows():
+            query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
+            VALUES (:token, :frequency, :document_occurence) ON CONFLICT(token) DO
+            UPDATE SET frequency = (SELECT frequency FROM bag_of_words WHERE token=excluded.token)+excluded.frequency,
+            document_occurence = (select document_occurence from bag_of_words where token=excluded.token)+excluded.document_occurence;
+            '''
+            statement = sql_txt(query)
+            values = { "token": row[0], "frequency": int(row[1]), "document_occurence": int(row[2]) }
+            con.execute(statement, **values)
+            # await con.execute(query)
+            
+    
+    
     result = vectorizer.tfCounter(tokens, bow)
     
-    for i in range(len(docs)):
-        filepath = (re.sub(r'.txt', '.csv', docs[i][1]))
-        filepath = (re.sub(r'/chapter/', '/grouped-tf/', filepath))
-        result[i].to_csv(filepath, index=False)
+    # for i in range(len(docs)):
+    #     filepath = (re.sub(r'.txt', '.csv', docs[i][1]))
+    #     filepath = (re.sub(r'/chapter/', '/grouped-tf/', filepath))
+    #     result[i].to_csv(filepath, index=False)
+
+
+    
+    
     # for term, freq in result['bow'].items():
     #     insertWordQuery = bag_of_words.insert().values(
     #         token=term,

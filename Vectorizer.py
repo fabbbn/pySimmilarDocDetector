@@ -3,6 +3,19 @@ import pandas as pd
 class Vectorizer:
     pass
 
+
+    def tfGenerator(self, path):
+        with open(path, 'r') as f:
+            token = str(f.read().strip()).split(" ")
+            df = pd.DataFrame.from_dict({
+                'token': list(i for i in token),
+                'freq': list(1 for i in range(len(token)))
+            })
+            df = df.groupby(by=['token']).agg({'freq':'sum'}).reset_index()
+            df['occur'] = list(1 for i in range(len(df)))
+            
+        return df
+
     def tfCounter(self, iterable_parts, bag_of_words):
         # count term frequency for every chapters = array of dataframes
         tfs = []
