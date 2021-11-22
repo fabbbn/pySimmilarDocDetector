@@ -1,110 +1,130 @@
 import math
 import pandas as pd
+import re
 class Vectorizer:
     pass
 
 
-    def tfGenerator(self, path):
-        with open(path, 'r') as f:
-            token = str(f.read().strip()).split(" ")
-            df = pd.DataFrame.from_dict({
-                'token': list(i for i in token),
-                'freq': list(1 for i in range(len(token)))
-            })
-            df = df.groupby(by=['token']).agg({'freq':'sum'}).reset_index()
-            df['occur'] = list(1 for i in range(len(df)))
-            
-        return df
+    def tfGenerator(self, paths):
+        # return array of dataframe(token, freq, occur)
+        tokens = []
+        for path in paths:
+            with open(path, 'r') as f:
+                token = str(f.read().strip()).split(" ")
+                df = pd.DataFrame.from_dict({
+                    'token': list(i for i in token),
+                    'freq': list(1 for i in range(len(token)))
+                })
+                df = df.groupby(by=['token']).agg({'freq':'sum'}).reset_index()
+                df['occur'] = list(1 for i in range(len(df)))
+                tokens.append(df)
 
-    def tfCounter(self, iterable_parts, bag_of_words):
-        # count term frequency for every chapters = array of dataframes
-        tfs = []
-        for part in iterable_parts:
-            tf = {}
-            for token in part:
-                if token in tf:
-                    tf[token]+=1
-                else:
-                    tf[token]=1
-            dictionary = {
-                'token': tf.keys(),
-                'freq': tf.values(),
-                'occur': list(1 for i in range(len(tf.items())))
-            }
-            temp = pd.DataFrame.from_dict(dictionary)
-            tfs.append(temp)
-                # if token in bag_of_words:
-                #     bag_of_words.freq+=1
-                # else:
-                #     bag_of_words.append({''})
-                #     # if token in doc_occurence:
-                #     #     doc_occurence[token]
-            
-            # print()
-            # print(len(tf))
-
-        # save each dictionary
-        # for dictionary in tfs:
-            # saving process (query)
-        #     for term, freq in dictionary.items():
-        #         print("\"{0}\" = {1} word".format(term, freq))
-        return tfs
-        # return {
-        #     "tf_per_part": tfs
-        #     "bow": bag_of_words
-        # }
+                # saving token into csv for faster computation
+                filepath = re.sub(r'.txt', '.csv', path)
+                filepath = re.sub(r'/chapter/', '/grouped-tf/', filepath)
+                df.to_csv(filepath, index=None)
+        
+        return tokens
 
 
-    def TfIdf(self, iterable_parts, bow, config='manning'):
+    def TfIdf(self, tfs, bow, N, config='manning'):
         tfidfs = []
-        # query all bag of words => bow
-        # SELECT Term as term, Frequency as N, DocOccurence as df from BagOfWords
-        # take result from tfs
-        tfs = self.tfCounter(iterable_parts)
-
+        # retrive all bobot dari bag of words dengan konfigurasi
+        # return idf_list = 
+        if config == "manning":
+            idf_list = self.__manningIdf(bow, N)
+        elif config == "jiffriya":
+            idf_list = self.__jiffriyaIdf(bow, N)
+        elif config == "xu":
+            idf_list = self.__xuIdf(bow, N)
+        elif config == "saptono":
+            idf_list = self.__saptonoIdf(bow, N)
+        # calculate weight as tf*idf
         # iterate parts of documents
         for token in tfs:
             # count tf x idf using configs
-            switcher = {
-                'manning': self.manningWeighting(token, bow),
-                'jiffriya': self.jiffriyaWeighting(token, bow),
-                'xu': self.xuWeighting(token, bow),
-                'saptono': self.saptonoWeighting(token, bow)
-            }
-            func = switcher.get(config)
-            tfidfs.append(func())
-    
-    def manningWeighting(self, token, bow):
-        # TF X LOG(N/DF)
-        weights = {}
-        for term in token:
-            weights[term] = token[term] * (math.log10(bow[term]['N']/bow[term]['df']))
+            data = self.__termWeighting(token, idf_list)
+            tfidfs.append(data)
+        return tfidfs
+
+
+    def __termWeighting(self, tokens, idf_list):
+        # result => dataframe: token, frequency, idf, weight
+        w = {}
+        idf = {}
+        for index, row in tokens.iterrows():
+            idf[row[0]] = (idf_list.loc[idf_list['token']==row[0]].idf.item())
+            w[row[0]] = (row[1] * idf[row[0]])
+            # w[row[0]] = (row[1] * idf_list.loc[idf_list['token']==row[0]]['idf'])
+        print("weighting accessed")
+        weighted_tokens = pd.DataFrame.from_dict({
+            'token': list(i for i in w.keys()),
+            'freq': tokens['freq'],
+            'idf': list(i for i in idf.values()),
+            'weight': list(i for i in w.values())
+        })
+        return weighted_tokens
+
+
+    def __manningIdf(self, idf_list, N):
+        print("manning weighting accessed")
+        # LOG(N/DF)
+        idf = {}
+        for index, row in idf_list.iterrows():
+            idf[row[0]] = math.log10(N/row[1])
+            # weights[term] = token[term] * (math.log10(bow[term]['N']/bow[term]['df']))
         
-        return weights
+        idfs = pd.DataFrame.from_dict({
+            'token': list(i for i in idf.keys()),
+            'idf': list(i for i in idf.values())
+        })
+        # return => dataframe(token, idf)
+        return idfs 
 
 
-    def jiffriyaWeighting(self, token, bow):
-        # TF X ( 1 + LOG(N/DF) )
-        weights = {}
-        for term in token:
-            weights[term] = token[term] * (1+(math.log10(bow[term]['N']/bow[term]['df'])))
+    def __jiffriyaIdf(self, idf_list, N):
+        print("jiffriya weighting accessed")
+        # ( 1 + LOG(N/DF) )
+        idf = {}
+        for index, row in idf_list.iterrows():
+            idf[row[0]] = 1+(math.log10(N/row[1]))
+            # weights[term] = token[term] * (math.log10(bow[term]['N']/bow[term]['df']))
         
-        return weights
+        idfs = pd.DataFrame.from_dict({
+            'token': list(i for i in idf.keys()),
+            'idf': list(i for i in idf.values())
+        })
+        # return => dataframe(token, idf)
+        return idfs 
 
 
-    def xuWeighting(self, token, bow):
-        # TF X (LOG(N/(1+DF)))
-        weights = {}
-        for term in token:
-            weights[term] = token[term] * ( math.log10(bow[term]['N']/ (bow[term]['df']+1) ) )
+    def __xuIdf(self, idf_list, N):
+        print("xu weighting accessed")
+        # (LOG(N/(1+DF)))
+        idf = {}
+        for index, row in idf_list.iterrows():
+            idf[row[0]] = math.log10(N/(row[1]+1))
+            # weights[term] = token[term] * (math.log10(bow[term]['N']/bow[term]['df']))
         
-        return weights
+        idfs = pd.DataFrame.from_dict({
+            'token': list(i for i in idf.keys()),
+            'idf': list(i for i in idf.values())
+        })
+        # return => dataframe(token, idf)
+        return idfs 
 
 
-    def saptonoWeighting(self, token, bow):
-        # TF X (LN(N/DF)+1)
-        weights = {}
-        for term in token:
-            weights[term] = token[term] * ( 1 + (math.log(bow[term]['N']/bow[term]['df'])) )
+    def __saptonoIdf(self, idf_list, N):
+        print("saptono weighting accessed")
+        # (LN(N/DF)+1)
+        idf = {}
+        for index, row in idf_list.iterrows():
+            idf[row[0]] = (math.log(N/row[1]))+1
+            # weights[term] = token[term] * (math.log10(bow[term]['N']/bow[term]['df']))
         
-        return weights
+        idfs = pd.DataFrame.from_dict({
+            'token': list(i for i in idf.keys()),
+            'idf': list(i for i in idf.values())
+        })
+        # return => dataframe(token, idf)
+        return idfs 

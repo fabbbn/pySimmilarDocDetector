@@ -3,7 +3,7 @@ from sqlalchemy.sql import text as sql_txt
 from sqlalchemy.sql.schema import ForeignKey
 from fastapi import FastAPI, Body, Request, UploadFile, File, Form
 from fastapi.responses import ORJSONResponse, RedirectResponse
-from typing import List, Optional, Text
+from typing import List, Text
 from pydantic import BaseModel
 import databases
 import sqlalchemy
@@ -44,8 +44,7 @@ document_part = sqlalchemy.Table(
 bag_of_words = sqlalchemy.Table(
     "bag_of_words",
     metadata,
-    sqlalchemy.Column("token_id", sqlalchemy.Integer, primary_key=True, autoincrement=True),
-    sqlalchemy.Column("token", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("token", sqlalchemy.String, primary_key=True, nullable=False),
     sqlalchemy.Column("frequency", sqlalchemy.Integer, nullable=False),
     sqlalchemy.Column("document_occurence", sqlalchemy.Integer, nullable=False)
 )
@@ -79,7 +78,6 @@ class Proposal(BaseModel):
     proposal_doc_id: int
 
 class BagOfWords(BaseModel):
-    token_id: int
     token: str
     frequency: int
     document_occurence: int
@@ -219,76 +217,43 @@ def generateDictioonary(keys, values):
 
 
 @app.post("/vectorize-data/document/{doc_id}")
-async def VectorizeDocument(doc_id: int):
+async def VectorizeDocument(doc_id: int, config: str = Form(...)):
     query = document_part.select().where(document_part.c.doc_id == doc_id)
     docs = await database.fetch_all(query)
     # print(docs)
-    query = bag_of_words.select()
-    bow = pd.DataFrame(await database.fetch_all(query), columns=['id','token', 'freq', 'occur'])
-    del bow['id']
+    
     # print(bow)
     from Vectorizer import Vectorizer
     vectorizer = Vectorizer()
-    tokens = []
-    for row in docs:
-        tokens.append(vectorizer.tfGenerator(row[1])) 
-    
-    # print(tokens[1])
-    nbow = pd.concat(tokens, ignore_index=True)
+    filepaths = list(row[1] for row in docs)
+    print(filepaths)
+    tokens = vectorizer.tfGenerator(filepaths)
 
+    # concating all tokens
+    nbow = pd.concat(tokens, ignore_index=True)
+    # grouping every terms => insert to database
     nbow = nbow.groupby(by=['token']).agg({'freq':'sum', 'occur':'sum'}).reset_index()
-    # print(nbow)
-    # df = pd.DataFrame([tokens, list(1 for i in range(len(tokens)))], columns=['token', 'freq'])
+    # insert every term to database => bag_of_words
     with engine.connect() as con:
-        for index, row in nbow.iterrows():
-            query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
+        query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
             VALUES (:token, :frequency, :document_occurence) ON CONFLICT(token) DO
             UPDATE SET frequency = (SELECT frequency FROM bag_of_words WHERE token=excluded.token)+excluded.frequency,
             document_occurence = (select document_occurence from bag_of_words where token=excluded.token)+excluded.document_occurence;
             '''
-            statement = sql_txt(query)
+        statement = sql_txt(query)
+        for index, row in nbow.iterrows():
             values = { "token": row[0], "frequency": int(row[1]), "document_occurence": int(row[2]) }
             con.execute(statement, **values)
-            # await con.execute(query)
-            
     
     
-    result = vectorizer.tfCounter(tokens, bow)
-    
-    # for i in range(len(docs)):
-    #     filepath = (re.sub(r'.txt', '.csv', docs[i][1]))
-    #     filepath = (re.sub(r'/chapter/', '/grouped-tf/', filepath))
-    #     result[i].to_csv(filepath, index=False)
+    query = bag_of_words.select()
+    bow = pd.DataFrame(await database.fetch_all(query), columns=['id','token', 'freq', 'occur'], index=None)
+    del bow['id']
+    del bow['freq']
 
+    print(bow)
+    query = document_part.select()
+    n = len(await database.fetch_all(query))
 
-    
-    
-    # for term, freq in result['bow'].items():
-    #     insertWordQuery = bag_of_words.insert().values(
-    #         token=term,
-    #         frequency=freq
-    #     )
-    #     insertWordQuery.on_duplicate_key_update(
-
-    #     )
-    # i=0
-    # for dictionary in tfs:
-    #     with open('./chapter/'+fname+'_'+splitted_doc[i]["chapter"]+'.csv', 'w') as f:
-    #         writes="term, frequency\n"
-    #         for term, freq in dictionary.items():
-    #             writes= writes + ("\"{0}\", {1}\n".format(term, freq))
-    #         f.write(writes)
-    #     f.close()
-    #     i += 1
-        
-    
-    # query all part of document ./chapter
-        # SELECT url_path as path, document_id as doc_id from DocumentParts
-        
-
-    # response = {
-    #     "message": "success",
-    #     "data": result
-    # }
-    # return [response]
-    # print(doc_id)
+    print(n)
+    weights = vectorizer.TfIdf(tokens, bow, n, config)

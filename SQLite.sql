@@ -6,6 +6,19 @@
 -- delete from document;    
 -- delete from sqlite_sequence where name='document';
 -- delete from bag_of_words;    
--- delete from sqlite_sequence where name='bsg_of_words';
--- insert or replace into bag_of_words (token, frequency, document_occurence)values ("hello", 5, 1) on conflict(token) do update set frequency = (select frequency from bag_of_words where token=excluded.token)+excluded.frequency, document_occurence = (select document_occurence from bag_of_words where token=excluded.token)+excluded.document_occurence;
+-- delete from sqlite_sequence where name='bag_of_words';
+-- insert
+--     or replace into bag_of_words (token, frequency, document_occurence)
+-- values ("11", 5, 1) on conflict(token) do
+-- update
+-- set frequency = (
+--         select frequency
+--         from bag_of_words
+--         where token = excluded.token
+--     ) + excluded.frequency,
+--     document_occurence = (
+--         select document_occurence
+--         from bag_of_words
+--         where token = excluded.token
+--     ) + excluded.document_occurence;
 -- -- insert into bag_of_words (token, frequency, document_occuresnce) values ("broken", 5, 2);

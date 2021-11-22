@@ -1,8 +1,16 @@
 class CaseBasedReasoning:
     pass
+    def CbrDocsSearch(self, ):
+        retrieved = self.__retrieval()
+        reused = self.__reuse()
+        revised = self.__revise()
+        retained = self.__retain()
+        result={}
+        return result
+
 
     def __retrieval(self):
-        # retrieval
+        # retrieval, cosine similarity count
         result = {}
         return result
 
@@ -22,11 +30,4 @@ class CaseBasedReasoning:
         return result
 
     
-    def CbrDocsSearch(self, ):
-        
-        retrieved = self.__retrieval()
-        reused = self.__reuse()
-        revised = self.__revise()
-        retained = self.__retain()
-        result={}
-        return result
+    
