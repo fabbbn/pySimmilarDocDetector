@@ -1,34 +1,11 @@
 import math
+from os import sep
 import pandas as pd
 import re
 class Vectorizer:
     pass
 
-
-    def tfGenerator(self, paths):
-        # return array of dataframe(token, freq, occur)
-        tokens = []
-        for path in paths:
-            with open(path, 'r') as f:
-                token = str(f.read().strip()).split(" ")
-                df = pd.DataFrame.from_dict({
-                    'token': list(i for i in token),
-                    'freq': list(1 for i in range(len(token)))
-                })
-                df = df.groupby(by=['token']).agg({'freq':'sum'}).reset_index()
-                df['occur'] = list(1 for i in range(len(df)))
-                tokens.append(df)
-
-                # saving token into csv for faster computation
-                filepath = re.sub(r'.txt', '.csv', path)
-                filepath = re.sub(r'/chapter/', '/grouped-tf/', filepath)
-                df.to_csv(filepath, index=None)
-        
-        return tokens
-
-
-    def TfIdf(self, tfs, bow, N, config='manning'):
-        tfidfs = []
+    def IdfGenerator(self, bow, N, config='manning'):
         # retrive all bobot dari bag of words dengan konfigurasi
         # return idf_list = 
         if config == "manning":
@@ -39,12 +16,40 @@ class Vectorizer:
             idf_list = self.__xuIdf(bow, N)
         elif config == "saptono":
             idf_list = self.__saptonoIdf(bow, N)
+        return idf_list
+        
+
+    def tfGenerator(self, paths):
+        # return array of dataframe(token, frequency, occur)
+        tokens = []
+        for i in range (len(paths)):
+            if re.search(r'.txt', paths[i]):
+                with open(paths[i], 'r') as f:
+                    token = str(f.read().strip()).split(" ")
+                    df = pd.DataFrame.from_dict({
+                        'token': list(i for i in token),
+                        'frequency': list(1 for i in range(len(token)))
+                    })
+                    df = df.groupby(by=['token']).agg({'frequency':'sum'}).reset_index()
+                    df['occur'] = list(1 for i in range(len(df)))
+                    tokens.append(df)
+            else:
+                df = pd.read_csv(paths[i])
+                # print(df)
+                tokens.append(df)
+        
+        return tokens
+
+
+    def TfIdf(self, tfs, idf_list):
+        tfidfs = []
         # calculate weight as tf*idf
         # iterate parts of documents
         for token in tfs:
             # count tf x idf using configs
             data = self.__termWeighting(token, idf_list)
             tfidfs.append(data)
+        print("tf-idf generator accessed")
         return tfidfs
 
 
@@ -56,10 +61,10 @@ class Vectorizer:
             idf[row[0]] = (idf_list.loc[idf_list['token']==row[0]].idf.item())
             w[row[0]] = (row[1] * idf[row[0]])
             # w[row[0]] = (row[1] * idf_list.loc[idf_list['token']==row[0]]['idf'])
-        print("weighting accessed")
+        # print("weighting accessed")
         weighted_tokens = pd.DataFrame.from_dict({
             'token': list(i for i in w.keys()),
-            'freq': tokens['freq'],
+            'frequency': tokens['frequency'],
             'idf': list(i for i in idf.values()),
             'weight': list(i for i in w.values())
         })

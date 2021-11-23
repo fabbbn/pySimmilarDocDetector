@@ -1,12 +1,16 @@
 -- SQLite
--- delete from document_part;    
--- delete from sqlite_sequence where name='document_part';
--- delete from proposal;    
--- delete from sqlite_sequence where name='proposal';
--- delete from document;    
--- delete from sqlite_sequence where name='document';
--- delete from bag_of_words;    
--- delete from sqlite_sequence where name='bag_of_words';
+-- delete from document_part;
+-- delete from sqlite_sequence
+-- where name = 'document_part';
+-- delete from proposal;
+-- delete from sqlite_sequence
+-- where name = 'proposal';
+-- delete from document;
+-- delete from sqlite_sequence
+-- where name = 'document';
+-- delete from bag_of_words;
+-- delete from sqlite_sequence
+-- where name = 'bag_of_words';
 -- insert
 --     or replace into bag_of_words (token, frequency, document_occurence)
 -- values ("11", 5, 1) on conflict(token) do
@@ -22,3 +26,5 @@
 --         where token = excluded.token
 --     ) + excluded.document_occurence;
 -- -- insert into bag_of_words (token, frequency, document_occuresnce) values ("broken", 5, 2);
+-- ALTER TABLE document_part DELETE document_part_filename;
+-- alter table case_bases drop COLUMN doc_part_name varchar;

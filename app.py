@@ -1,5 +1,6 @@
 from os import times
 from sqlalchemy.sql import text as sql_txt
+from sqlalchemy.sql.expression import all_
 from sqlalchemy.sql.schema import ForeignKey
 from fastapi import FastAPI, Body, Request, UploadFile, File, Form
 from fastapi.responses import ORJSONResponse, RedirectResponse
@@ -9,6 +10,7 @@ import databases
 import sqlalchemy
 import re
 import pandas as pd
+import os
 
 DATABASE_URL = "sqlite:///./docs_similarity_cbr.db"
 database = databases.Database(DATABASE_URL)
@@ -39,7 +41,8 @@ document_part = sqlalchemy.Table(
     sqlalchemy.Column("document_part_path", sqlalchemy.Text, nullable=False),
     sqlalchemy.Column("document_part_filename", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("document_part_name", sqlalchemy.String, nullable=False),
-    sqlalchemy.Column("doc_id", sqlalchemy.Integer, ForeignKey('document.document_id'))
+    sqlalchemy.Column("doc_id", sqlalchemy.Integer, ForeignKey('document.document_id')),
+    sqlalchemy.Column("document_part_tokens", sqlalchemy.Text, nullable=False)
 )
 bag_of_words = sqlalchemy.Table(
     "bag_of_words",
@@ -47,6 +50,16 @@ bag_of_words = sqlalchemy.Table(
     sqlalchemy.Column("token", sqlalchemy.String, primary_key=True, nullable=False),
     sqlalchemy.Column("frequency", sqlalchemy.Integer, nullable=False),
     sqlalchemy.Column("document_occurence", sqlalchemy.Integer, nullable=False)
+)
+case_bases = sqlalchemy.Table(
+    "case_bases",
+    metadata,
+    sqlalchemy.Column("record_id", sqlalchemy.String, primary_key=True, nullable=False),
+    sqlalchemy.Column("doc_id", sqlalchemy.Integer, ForeignKey('document.document_id')),
+    sqlalchemy.Column("doc_part_name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("sim_doc_id", sqlalchemy.Integer, ForeignKey('document.document_id')),
+    sqlalchemy.Column("sim_doc_part_name", sqlalchemy.String, nullable=False),
+    sqlalchemy.Column("cos_sim_value", sqlalchemy.REAL, nullable=False),
 )
 engine = sqlalchemy.create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}
@@ -66,6 +79,7 @@ class DocumentPart(BaseModel):
     document_part_filename: str
     document_part_name: str
     doc_id: Document
+    document_part_tokens: str
 
 class Proposal(BaseModel):
     proposal_id: int
@@ -81,6 +95,14 @@ class BagOfWords(BaseModel):
     token: str
     frequency: int
     document_occurence: int
+
+class CaseBases(BaseModel):
+    record_id: int
+    doc_id: int
+    doc_part_name: str
+    sim_doc_id: int
+    sim_doc_part_name: str
+    cos_sim_value: float
 
 @app.on_event("startup")
 async def startup():
@@ -155,7 +177,7 @@ async def DataGeneration(doc_id: int):
     doc = await database.fetch_one(query)
     title_query = proposal.select().where(proposal.c.proposal_doc_id == doc_id)
     prop = await database.fetch_one(title_query)
-    print(prop[1])
+    # print(prop[1])
     # extracting file
     import fitz
     from TimeStamp import TimeStamp as ts
@@ -185,7 +207,9 @@ async def DataGeneration(doc_id: int):
         # save into .txt
         writes=""
         filename = "{0}_{1}.txt".format(re.sub(r'.pdf', '', doc[2]), token['title'])
+        token_name = "{0}_{1}.csv".format(re.sub(r'.pdf', '', doc[2]), token['title'])
         file_path = './chapter/'+filename
+        token_path = './grouped-tf/'+token_name
         
         with open(file_path, 'w') as file:
             writes = writes + (" ".join((token['content'])))
@@ -197,6 +221,7 @@ async def DataGeneration(doc_id: int):
             document_part_path = file_path,
             document_part_filename = filename,
             document_part_name = token['title'],
+            document_part_tokens = token_path,
             doc_id = doc_id
         )
         await database.execute(insertQuery)
@@ -209,30 +234,45 @@ async def DataGeneration(doc_id: int):
     # })
 
     # redirect to vectorization route
-    url= '/vectorize-data/document/'+str(doc_id)
+    url= '/similarity-cbr/document/'+str(doc_id)
     return RedirectResponse(url)
 
-def generateDictioonary(keys, values):
-    return {keys[i]: values[i] for i in range(len(keys))}
 
-
-@app.post("/vectorize-data/document/{doc_id}")
-async def VectorizeDocument(doc_id: int, config: str = Form(...)):
-    query = document_part.select().where(document_part.c.doc_id == doc_id)
-    docs = await database.fetch_all(query)
-    # print(docs)
-    
-    # print(bow)
+@app.post("/similarity-cbr/document/{doc_id}")
+async def SimiarityCbr(doc_id: int, config: str = Form(...)):
     from Vectorizer import Vectorizer
     vectorizer = Vectorizer()
-    filepaths = list(row[1] for row in docs)
-    print(filepaths)
-    tokens = vectorizer.tfGenerator(filepaths)
+    # work flow 
+    # retrieve bow and number of all document parts
+    query = bag_of_words.select()
+    bow = pd.DataFrame(await database.fetch_all(query), columns=['token', 'frequency', 'occur'], index=None)
+    del bow['frequency']
+    # print(bow.shape)
+    query = document_part.select()
+    n = len(await database.fetch_all(query))
+    # print(n)
+
+    # with bow, count idf of every bow
+    idf_dict = vectorizer.IdfGenerator(bow, n, config)
+
+    # retrieve new document
+    query = document_part.select().where(document_part.c.doc_id == doc_id)
+    docs = await database.fetch_all(query)
+
+    # generate tokens of searched doc
+    token_paths = list(row[1] for row in docs)
+    output_paths = list(row[5] for row in docs)
+    
+    tokens = vectorizer.tfGenerator(token_paths)
+
+    # saving token into csv for faster computation
+    for i in range (len(tokens)):
+        tokens[i].to_csv(output_paths[i], index=None)
 
     # concating all tokens
     nbow = pd.concat(tokens, ignore_index=True)
     # grouping every terms => insert to database
-    nbow = nbow.groupby(by=['token']).agg({'freq':'sum', 'occur':'sum'}).reset_index()
+    nbow = nbow.groupby(by=['token']).agg({'frequency':'sum', 'occur':'sum'}).reset_index()
     # insert every term to database => bag_of_words
     with engine.connect() as con:
         query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
@@ -244,16 +284,31 @@ async def VectorizeDocument(doc_id: int, config: str = Form(...)):
         for index, row in nbow.iterrows():
             values = { "token": row[0], "frequency": int(row[1]), "document_occurence": int(row[2]) }
             con.execute(statement, **values)
-    
-    
-    query = bag_of_words.select()
-    bow = pd.DataFrame(await database.fetch_all(query), columns=['id','token', 'freq', 'occur'], index=None)
-    del bow['id']
-    del bow['freq']
 
-    print(bow)
-    query = document_part.select()
-    n = len(await database.fetch_all(query))
+    # weight used for retrieval (searched doc)
+    weights_doc = vectorizer.TfIdf(tokens, idf_dict)
+    id_doc = list(row[0] for row in docs)
+    dict_doc = {}
+    for i in range(len(docs)):
+        dict_doc[id_doc[i]] = weights_doc[i]
 
-    print(n)
-    weights = vectorizer.TfIdf(tokens, bow, n, config)
+    # retrieve all document except new document for searching
+    # use path of every document
+    query = document_part.select().where(document_part.c.doc_id != doc_id)
+    base_docs = await database.fetch_all(query)
+    base_tokens = vectorizer.tfGenerator(list(row[5] for row in base_docs)) # list of base document's path
+    # generate weight of all base docs
+    weights_base = vectorizer.TfIdf(base_tokens, idf_dict)
+    id_base = list(row[0] for row in base_docs)
+    dict_base = {}
+    for i in range(len(base_docs)):
+        dict_base[id_base[i]] = weights_base[i]
+    # do similarity detection using CBR
+    from SimDocs import SimDocs
+    docsim = SimDocs()
+
+    # design result => dataframe (doc_part_name, sim_part_name, cos_sim)
+    result = docsim.CbrDocsSearch(dict_doc, dict_base)
+
+    # save result to database
+
