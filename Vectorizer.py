@@ -41,7 +41,7 @@ class Vectorizer:
         return tokens
 
 
-    def TfIdf(self, tfs, idf_list):
+    def tfIdf(self, tfs, idf_list):
         tfidfs = []
         # calculate weight as tf*idf
         # iterate parts of documents
@@ -49,7 +49,7 @@ class Vectorizer:
             # count tf x idf using configs
             data = self.__termWeighting(token, idf_list)
             tfidfs.append(data)
-        print("tf-idf generator accessed")
+        print("Vectorizer.tfIdf() accessed")
         return tfidfs
 
 
@@ -72,7 +72,7 @@ class Vectorizer:
 
 
     def __manningIdf(self, idf_list, N):
-        print("manning weighting accessed")
+        print("manning IDF accessed")
         # LOG(N/DF)
         idf = {}
         for index, row in idf_list.iterrows():
@@ -88,7 +88,7 @@ class Vectorizer:
 
 
     def __jiffriyaIdf(self, idf_list, N):
-        print("jiffriya weighting accessed")
+        print("jiffriya IDF accessed")
         # ( 1 + LOG(N/DF) )
         idf = {}
         for index, row in idf_list.iterrows():
@@ -104,7 +104,7 @@ class Vectorizer:
 
 
     def __xuIdf(self, idf_list, N):
-        print("xu weighting accessed")
+        print("xu IDF accessed")
         # (LOG(N/(1+DF)))
         idf = {}
         for index, row in idf_list.iterrows():
@@ -120,7 +120,7 @@ class Vectorizer:
 
 
     def __saptonoIdf(self, idf_list, N):
-        print("saptono weighting accessed")
+        print("saptono IDF accessed")
         # (LN(N/DF)+1)
         idf = {}
         for index, row in idf_list.iterrows():

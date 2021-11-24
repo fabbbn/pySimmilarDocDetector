@@ -36,69 +36,35 @@ class DataProcessing:
         return result
 
     
-    def cleaningText(self, text):
-        print("DataProcessing.cleanText() accessed")
-        cleaned = re.sub(r'[^\w\s]', ' ', text)
-        cleaned = re.sub(r'\d+\s', ' ', cleaned)
-        cleaned = re.sub(r'\s{1,}', ' ', cleaned)
-        return ( cleaned.strip() )
-
-    
-    def casefoldingText(self, text):
-        return ( text.lower() )
-
-    
-    def tokenizeText(self, text):
-        return ( text.split(" ") )
-
-    
-    def stopwordRemoval(self, tokens):
-        factory = StopWordRemoverFactory()
-        stopword = factory.create_stop_word_remover()
-
-        # Kalimat
-        swremoved = stopword.remove(" ".join(tokens))
-        return( swremoved.split(" ") )
-            
-
-    def stemmingTokens(self, tokens):
-        factory = StemmerFactory()
-        stemmer = factory.create_stemmer()
-        stemmed = []
-        # stemming process
-        for token in tokens:
-            stemmed.append(stemmer.stem(token))
-        return ( stemmed )
-
-
     def preprocessingText(self, splitted):
+        print("DataProcessing.preprocessingText() accessed")
         cleaned = []
         casefold = []
         tokenized = []
         swremoved = []
         stemmed = []
         for part in splitted:
-            temp = self.cleaningText(part['text'])
+            temp = self.__cleaningText(part['text'])
             cleaned.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.casefoldingText(temp)
+            temp = self.__casefoldingText(temp)
             casefold.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.tokenizeText(temp)
+            temp = self.__tokenizeText(temp)
             tokenized.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.stopwordRemoval(temp)
+            temp = self.__stopwordRemoval(temp)
             swremoved.append({
                 "title":part['chapter'],
                 "content": temp
             })
-            temp = self.stemmingTokens(temp)
+            temp = self.__stemmingTokens(temp)
             stemmed.append({
                 "title":part['chapter'],
                 "content": temp
@@ -114,3 +80,40 @@ class DataProcessing:
                 "Stemming": stemmed
             }
         })
+
+
+    def __cleaningText(self, text):
+        cleaned = re.sub(r'[^\w\s]', ' ', text)
+        cleaned = re.sub(r'\d+\s', ' ', cleaned)
+        cleaned = re.sub(r'\s{1,}', ' ', cleaned)
+        return ( cleaned.strip() )
+
+    
+    def __casefoldingText(self, text):
+        return ( text.lower() )
+
+    
+    def __tokenizeText(self, text):
+        return ( text.split(" ") )
+
+    
+    def __stopwordRemoval(self, tokens):
+        factory = StopWordRemoverFactory()
+        stopword = factory.create_stop_word_remover()
+
+        # Kalimat
+        swremoved = stopword.remove(" ".join(tokens))
+        return( swremoved.split(" ") )
+            
+
+    def __stemmingTokens(self, tokens):
+        factory = StemmerFactory()
+        stemmer = factory.create_stemmer()
+        stemmed = []
+        # stemming process
+        for token in tokens:
+            stemmed.append(stemmer.stem(token))
+        return ( stemmed )
+
+
+    

@@ -1,16 +1,16 @@
 from os import times
 from sqlalchemy.sql import text as sql_txt
-from sqlalchemy.sql.expression import all_
 from sqlalchemy.sql.schema import ForeignKey
-from fastapi import FastAPI, Body, Request, UploadFile, File, Form
-from fastapi.responses import ORJSONResponse, RedirectResponse
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import ORJSONResponse, JSONResponse, RedirectResponse
+from fastapi.encoders import jsonable_encoder
 from typing import List, Text
 from pydantic import BaseModel
 import databases
 import sqlalchemy
 import re
 import pandas as pd
-import os
+import json
 
 DATABASE_URL = "sqlite:///./docs_similarity_cbr.db"
 database = databases.Database(DATABASE_URL)
@@ -289,7 +289,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             con.execute(statement, **values)
 
     # weight used for retrieval (searched doc)
-    weights_doc = vectorizer.TfIdf(tokens, idf_dict)
+    weights_doc = vectorizer.tfIdf(tokens, idf_dict)
     id_doc = list(row[0] for row in docs)
     dict_doc = {}
     for i in range(len(docs)):
@@ -301,7 +301,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
     base_docs = await database.fetch_all(query)
     base_tokens = vectorizer.tfGenerator(list(row[5] for row in base_docs)) # list of base document's path
     # generate weight of all base docs
-    weights_base = vectorizer.TfIdf(base_tokens, idf_dict)
+    weights_base = vectorizer.tfIdf(base_tokens, idf_dict)
     id_base = list(row[0] for row in base_docs)
     dict_base = {}
     for i in range(len(base_docs)):
@@ -312,7 +312,13 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
 
     # design result => dataframe (doc_part_name, sim_part_name, cos_sim)
     result = docsim.CbrDocsSearch(dict_doc, dict_base)
-
-    # save result to database
-    
+    reused = []
+    for df in result['reused']:
+        frame = pd.DataFrame(df)
+        reused.append(json.loads(frame.to_json(orient='index')))
+    return jsonable_encoder({
+        "retrieved": json.loads(pd.DataFrame(result['retrieved']).to_json(orient='index')),
+        "reused": reused,
+        "final_result": json.loads(pd.DataFrame(result['result']).to_json(orient='index'))
+    })
 
