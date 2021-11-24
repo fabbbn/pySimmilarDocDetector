@@ -15,18 +15,23 @@ stemmed = []
 splitted = dp.splitDocument(text)
 
 df = pd.DataFrame.from_dict({
-    'token': ['siapa', 'aku', 'huhu'],
-    'freq' : [2, 5, 1],
-    'idf': [0.99, 0.7, 0.1],
-    'weight': [0.7, 0.5, 0.2]
+    'token': ['siapa', 'aku', 'huhu', 'hehe'],
+    'freq' : [2, 5, 1, 7],
+    'idf': [0.99, 0.7, 0.1, 0.99],
+    'weight': [0.7, 0.3, 0.2, 0.5]
 })
 for index, row in df.iterrows():
     print(row[3]*df.loc[ df['token']=='siapa' ]['weight'].item())
-arrays = []
-arrays.append(df.iloc[df['weight'].idxmax()])
-arrays.append(df.iloc[df['weight'].idxmin()])
 
-print(arrays)
+df['idf'] = df['idf'].astype(int)
+print(df.dtypes)
+print(df.loc[ df['weight'] >= 0.3 ].reset_index().sort_values(by=['weight'], ascending=False))
+# arrays = []
+# arrays.append(df.iloc[df['weight'].idxmax()].to_frame().transpose())
+# arrays.append(df.iloc[df['weight'].idxmin()].to_frame().transpose())
+
+# for i in arrays:
+#     print((i))
 # for part in splitted:
 #     temp = dp.cleaningText(part['text'])
 #     cleaned.append({

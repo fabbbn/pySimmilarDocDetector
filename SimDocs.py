@@ -25,39 +25,53 @@ class SimDocs:
             'sim_doc_part_id': base_ids,
             'cos_sim_value': cos_sim
         })
+        print(retrieved.shape)
 # reuse search result with value greater than 0.2, then revise
         threshold = 0.2
         temp = retrieved
-        parts = temp.groupby(['doc_part_id']).nunique().reset_index()['doc_part_id'].array
+        ids = temp.groupby(['doc_part_id']).nunique().reset_index()['doc_part_id'].array
         grouped = []
         reused = []
         revised = []
-        for id in parts:
+        for id in ids:
             grouped.append(
-                retrieved[retrieved['doc_part_id']==id]
+                retrieved[retrieved['doc_part_id']==id].reset_index()
             )
         for grp in grouped:
-            if grp['cos_sim_value'].max()<threshold:
-                print("get max below th")
-                print(grp.iloc[[grp['cos_sim_value'].idxmax()]])
-            #     reused.append(grp.iloc[grp['cos_sim_value'].idxmax()])
-            else:
+            print(type(grp))
+            print(grp.shape)
+            max_row = (grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
+            del max_row['index']
+            if ( grp['cos_sim_value'].max() ) >= threshold:
                 print("get max above th")
-            #     reused.append(grp[grp['cos_sim_value']>=0.2])
-            print(grp.iloc[[grp['cos_sim_value'].idxmax()], :])
-            # revised.append(grp.iloc[grp['cos_sim_value'].idxmax()])
-        # list_retrieved = list(retrieved.shape[0] for i in parts)
-        # list_reused = list(
-        #     df.shape[0] for df in reused
-        #     )
-        # result = pd.DataFrame.from_dict({
-        #     'doc_part_id': parts,
-        #     'sim_doc_part_id': revised['sim_doc_part_id'],
-        #     'cosine_sim_value': revised['cosine_sim_value'],
-        #     'n_of_retrieved': list_retrieved,
-        #     'n_of_reused': list_reused
-        # })
+                reuse_rows = grp.loc[ grp['cos_sim_value'] >= threshold ].reset_index().sort_values(by=['cos_sim_value'], ascending=False)
+                reused.append(
+                    reuse_rows
+                )
+            else:
+                print("get max below th")
+                reused.append(max_row)
+            revised.append(max_row)
+        
+        
+        result = pd.concat(revised, ignore_index=True)
+        result['doc_part_id'] = result['doc_part_id'].astype(int)
+        result['sim_doc_part_id'] = result['sim_doc_part_id'].astype(int)
         # print(result)
+        list_retrieved = []
+        list_reused = []
+        for r in reused:
+            list_retrieved.append(retrieved.shape[0])
+            # list_reused.append(print(int(r.shape[0])))
+            list_reused.append(r.shape[0])
+        result = pd.DataFrame.from_dict({
+            'doc_part_id': result['doc_part_id'],
+            'sim_doc_part_id': result['sim_doc_part_id'],
+            'cos_sim_value': result['cos_sim_value'],
+            'n_of_retrieved': list_retrieved,
+            'n_of_reused': list_reused
+        })
+        print(result)
         # return result
 
 
@@ -82,28 +96,43 @@ class SimDocs:
         return result
 
 
-    def __reuse(self, datas:pd.DataFrame):
+    def __reuseRevise(self, datas:pd.DataFrame):
         threshold = 0.2
         temp = datas
-        parts = temp.groupby(['doc_part_id']).nunique().reset_index()['doc_part_id'].array
+        ids = temp.groupby(['doc_part_id']).nunique().reset_index()['doc_part_id'].array
         grouped = []
-        filtered = []
-        for id in parts:
+        reused = []
+        revised = []
+        for id in ids:
             grouped.append(
-                datas[datas['doc_part_id']==id]
+                datas[datas['doc_part_id']==id].reset_index()
             )
         for grp in grouped:
-            if grp['cos_sim_value'].max()<threshold:
-                filtered.append(grp.iloc[grp['cos_sim_value'].idxmax()])
+            print(type(grp))
+            print(grp.shape)
+            max_row = (grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
+            del max_row['index']
+            if ( grp['cos_sim_value'].max() ) >= threshold:
+                print("get max above th")
+                reuse_rows = grp.loc[ grp['cos_sim_value'] >= threshold ].reset_index().sort_values(by=['cos_sim_value'], ascending=False)
+                reused.append(
+                    reuse_rows
+                )
             else:
-                filtered.append(grp[grp['cos_sim_value']>=0.2])
+                print("get max below th")
+                reused.append(max_row)
+            revised.append(max_row)
         
-        return filtered
-
-    
-    def __revise(self, datas:pd.DataFrame):
-        result={}
+        for r in reused:
+            print(r.shape)
+        merged = pd.concat(revised, ignore_index=True)
+        # result => object> "reused": reused, "revised": merged
+        result = {
+            "reused": reused,
+            "revised": merged
+        }
         return result
+
 
 
     # async def __retain(self, datas:pd.DataFrame):

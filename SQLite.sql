@@ -9,6 +9,8 @@
 -- delete from sqlite_sequence
 -- where name = 'document';
 -- delete from bag_of_words;
+-- ALTER TABLE case_bases ADD COLUMN config_used varchar not null default "manning";
+-- ALTER TABLE case_bases RENAME COLUMN congig_used TO config_used;
 -- delete from sqlite_sequence
 -- where name = 'bag_of_words';
 -- insert

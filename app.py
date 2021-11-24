@@ -60,6 +60,8 @@ case_bases = sqlalchemy.Table(
     sqlalchemy.Column("sim_doc_id", sqlalchemy.Integer, ForeignKey('document.document_id')),
     sqlalchemy.Column("sim_doc_part_name", sqlalchemy.String, nullable=False),
     sqlalchemy.Column("cos_sim_value", sqlalchemy.REAL, nullable=False),
+    sqlalchemy.Column("config_used", sqlalchemy.String, nullable=False),
+
 )
 engine = sqlalchemy.create_engine(
     DATABASE_URL, connect_args={"check_same_thread": False}
@@ -103,6 +105,7 @@ class CaseBases(BaseModel):
     sim_doc_id: int
     sim_doc_part_name: str
     cos_sim_value: float
+    config_used: str
 
 @app.on_event("startup")
 async def startup():
@@ -311,4 +314,5 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
     result = docsim.CbrDocsSearch(dict_doc, dict_base)
 
     # save result to database
+    
 
