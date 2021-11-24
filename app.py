@@ -132,7 +132,7 @@ async def ReadProposals():
     return jsonable_encoder(proposals)
 
 
-@app.post("/submit-form", response_class=RedirectResponse, status_code=307)
+@app.post("/submit-form")
 async def FormHandler(
     prop_title: str = Form(...), prop_writers: str = Form(...),
     prop_email: str = Form(...), prop_year: int = Form(...),
@@ -158,6 +158,7 @@ async def FormHandler(
             document_filename=fname+'.pdf'
         )
         doc_id = await database.execute(insertDocQuery)
+        print(doc_id)
         insertPropQuery = proposal.insert().values(
             proposal_title=prop_title,
             proposal_writer=prop_writers,
@@ -327,6 +328,23 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
 
             # design result => dataframe (doc_part_name, sim_part_name, cos_sim)
             result = docsim.CbrDocsSearch(dict_doc, dict_base)
+            res = json.loads(pd.DataFrame(result['result']).to_json(orient='index'))
+            # save case_bases to databases
+            with engine.connect() as con:
+                query = '''INSERT INTO case_bases (doc_id, doc_part_name, sim_doc_id, sim_doc_part_name, cos_sim_value, config_used)
+                    VALUES (
+                        (SELECT doc_id FROM document_part WHERE document_part_id = :doc_part_id),
+                        (SELECT document_part_name FROM document_part WHERE document_part_id = :doc_part_id),
+                        (SELECT doc_id FROM document_part WHERE document_part_id = :sim_doc_part_id),
+                        (SELECT document_part_name FROM document_part WHERE document_part_id = :sim_doc_part_id),
+                        :cos_sim_value,
+                        :config
+                    );
+                '''
+                statement = sql_txt(query)
+                for index, row in result['result'].iterrows():
+                    values = { "doc_part_id": row[0], "sim_doc_part_id": row[1], "cos_sim_value": row[2], "config_use": config }
+                    con.execute(statement, **values)
             reused = []
             for df in result['reused']:
                 frame = pd.DataFrame(df)
@@ -334,6 +352,6 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             return jsonable_encoder({
                 "retrieved": json.loads(pd.DataFrame(result['retrieved']).to_json(orient='index')),
                 "reused": reused,
-                "final_result": json.loads(pd.DataFrame(result['result']).to_json(orient='index'))
+                "final_result": res
             })
 
