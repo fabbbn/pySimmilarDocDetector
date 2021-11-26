@@ -3,7 +3,7 @@ from os import times
 from sqlalchemy.sql import text as sql_txt
 from sqlalchemy.sql.schema import ForeignKey
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.responses import ORJSONResponse, JSONResponse, RedirectResponse
+from fastapi.responses import ORJSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
 from typing import List, Text
 from pydantic import BaseModel
@@ -92,7 +92,7 @@ class Proposal(BaseModel):
     proposal_email: str
     proposal_type: str
     proposal_sintaid: int
-    proposal_doc_id: int
+    proposal_doc_link: str
 
 class BagOfWords(BaseModel):
     token: str
@@ -107,6 +107,12 @@ class CaseBases(BaseModel):
     sim_doc_part_name: str
     cos_sim_value: float
     config_used: str
+
+responses = {
+    404: {"description": "Item tidak ditemukan"},
+    302: {"description": "The item was moved"},
+    403: {"description": "Not enough privileges"},
+}
 
 @app.on_event("startup")
 async def startup():
@@ -132,7 +138,32 @@ async def ReadProposals():
     return jsonable_encoder(proposals)
 
 
-@app.post("/submit-form")
+@app.get("/download/{filename}",
+    responses = {
+        **responses,
+        200: {
+            "description": "Berkas berhasil diunduh",
+            "content": {}
+        }
+    }
+    )
+def DownloadHandler(filename: str):
+    def iterfile():
+        with open('./public/upload/'+filename, mode="rb") as fl:
+            yield from fl
+
+    return StreamingResponse(iterfile(), media_type="application/pdf")
+
+
+@app.post("/submit-form", 
+    response_model=Proposal,
+    responses= {
+        **responses,
+        200 : {
+            "description": "Unggah dokumen berhasil",
+            "content": {}
+        }
+    })
 async def FormHandler(
     prop_title: str = Form(...), prop_writers: str = Form(...),
     prop_email: str = Form(...), prop_year: int = Form(...),
@@ -144,8 +175,8 @@ async def FormHandler(
         from TimeStamp import TimeStamp as ts
 
         # upload file
-        fname = (uuid.uuid4().hex)
-        out_file = './public/upload/'+fname+'.pdf'
+        fname = (uuid.uuid4().hex)+'.pdf'
+        out_file = './public/upload/'+fname
         async with aiofiles.open(out_file, 'wb') as output:
             content = await prop_doc.read()
             await output.write(content)
@@ -155,10 +186,10 @@ async def FormHandler(
         # upload docs in database
         insertDocQuery = document.insert().values(
             document_path=out_file,
-            document_filename=fname+'.pdf'
+            document_filename=fname
         )
         doc_id = await database.execute(insertDocQuery)
-        print(doc_id)
+        # print(doc_id)
         insertPropQuery = proposal.insert().values(
             proposal_title=prop_title,
             proposal_writer=prop_writers,
@@ -169,10 +200,20 @@ async def FormHandler(
             proposal_doc_id=doc_id
         )
         await database.execute(insertPropQuery)
+
+        # fetch row proposal
+        query = proposal.select().where(proposal.c.proposal_doc_id==doc_id)
+        result = await database.fetch_one(query)
         
         return jsonable_encoder({
-            "detail": "Unggah dokumen berhasil",
-            "doc_id" : doc_id
+            "proposal_id": result[0],
+            "proposal_title": result[1],
+            "proposal_writer": result[2],
+            "proposal_year": result[3],
+            "proposal_email": result[4],
+            "proposal_type": result[5],
+            "proposal_sintaid": result[6],
+            "proposal_doc_link": fname
         })
         # url= '/generate-data/document/'+str(doc_id)
         # return RedirectResponse(url)
@@ -180,7 +221,6 @@ async def FormHandler(
         raise HTTPException(status_code=500, detail="Gagal mengunggah berkas ke dalam server")
 
 
-# @app.post("/generate-data/document/{doc_id}", response_model=Document)
 @app.post("/generate-data/document/{doc_id}")
 async def DataGeneration(doc_id: int):
     query = document.select().where(document.c.document_id == doc_id)
@@ -190,7 +230,6 @@ async def DataGeneration(doc_id: int):
     if len(doc) == 0 and len(prop)==0:
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     else:        
-        # print(prop[1])
         # extracting file
         import fitz
         from TimeStamp import TimeStamp as ts
@@ -215,7 +254,7 @@ async def DataGeneration(doc_id: int):
 
         # save every parts' pre processing results
         
-        tokens = result["Hasil Pra-pengolahan Teks"]["Stemming"]
+        tokens = result["doc_pre_process"][4]["result"]
         for token in tokens:
             # save into .txt
             writes=""
@@ -225,7 +264,7 @@ async def DataGeneration(doc_id: int):
             token_path = './grouped-tf/'+token_name
             
             with open(file_path, 'w') as file:
-                writes = writes + (" ".join((token['content'])))
+                writes = writes + (((token['content'])))
                 file.write(writes)
             file.close()
 
@@ -255,45 +294,55 @@ async def DataGeneration(doc_id: int):
 async def SimiarityCbr(doc_id: int, config: str = Form(...)):
     from Vectorizer import Vectorizer
     vectorizer = Vectorizer()
-    # work flow 
-    # retrieve bow and number of all document parts
-    query = bag_of_words.select()
-    bow = pd.DataFrame(await database.fetch_all(query), columns=['token', 'frequency', 'occur'], index=None)
-    del bow['frequency']
-
+    # work flow   
     # retrieve new document
     query = document_part.select().where(document_part.c.doc_id == doc_id)
     docs = await database.fetch_all(query)
 
-    if len(docs) == 0 :
+    if len(docs) == 0 : # doc_id not fond
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     else:
         # generate tokens of searched doc
         token_paths = list(row[1] for row in docs)
         output_paths = list(row[5] for row in docs)
+        part_names = list(row[4] for row in docs)
         
         tokens = vectorizer.tfGenerator(token_paths)
+        
+        w = []
+        for i in range(len(part_names)):
+            w.append({
+                "chapter":part_names[i],
+                "data": json.dumps(tokens[i].to_json(orient="records"))
+            })
+        # CONDITIONAL IF FILE .CSV EXISTS
+        import os
+        if not (os.path.exists(output_paths[0])):
+            # saving token into csv for faster computation
+            for i in range (len(tokens)):
+                tokens[i].to_csv(output_paths[i], index=None)
 
-        # saving token into csv for faster computation
-        for i in range (len(tokens)):
-            tokens[i].to_csv(output_paths[i], index=None)
+            # concating all tokens
+            nbow = pd.concat(tokens, ignore_index=True)
+            # grouping every terms => insert to database
+            nbow = nbow.groupby(by=['token']).agg({'frequency':'sum', 'occur':'sum'}).reset_index()
+            # insert every term to database => bag_of_words
+            with engine.connect() as con:
+                query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
+                    VALUES (:token, :frequency, :document_occurence) ON CONFLICT(token) DO
+                    UPDATE SET frequency = (SELECT frequency FROM bag_of_words WHERE token=excluded.token)+excluded.frequency,
+                    document_occurence = (select document_occurence from bag_of_words where token=excluded.token)+excluded.document_occurence;
+                    '''
+                statement = sql_txt(query)
+                for index, row in nbow.iterrows():
+                    values = { "token": row[0], "frequency": int(row[1]), "document_occurence": int(row[2]) }
+                    con.execute(statement, **values)
 
-        # concating all tokens
-        nbow = pd.concat(tokens, ignore_index=True)
-        # grouping every terms => insert to database
-        nbow = nbow.groupby(by=['token']).agg({'frequency':'sum', 'occur':'sum'}).reset_index()
-        # insert every term to database => bag_of_words
-        with engine.connect() as con:
-            query = '''INSERT OR REPLACE INTO bag_of_words (token, frequency, document_occurence)
-                VALUES (:token, :frequency, :document_occurence) ON CONFLICT(token) DO
-                UPDATE SET frequency = (SELECT frequency FROM bag_of_words WHERE token=excluded.token)+excluded.frequency,
-                document_occurence = (select document_occurence from bag_of_words where token=excluded.token)+excluded.document_occurence;
-                '''
-            statement = sql_txt(query)
-            for index, row in nbow.iterrows():
-                values = { "token": row[0], "frequency": int(row[1]), "document_occurence": int(row[2]) }
-                con.execute(statement, **values)
-
+        # retrieve bow
+        query = bag_of_words.select()
+        bow = pd.DataFrame(await database.fetch_all(query), columns=['token', 'frequency', 'occur'], index=None)
+        del bow['frequency']
+        
         # retrieve base case document
         query = document_part.select()
         n = len(await database.fetch_all(query))
@@ -305,12 +354,20 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         weights_doc = vectorizer.tfIdf(tokens, idf_dict)
         id_doc = list(row[0] for row in docs)
         dict_doc = {}
+        
         for i in range(len(docs)):
             dict_doc[id_doc[i]] = weights_doc[i]
 
         # retrieve all document except new document for searching
-        query = document_part.select().where(document_part.c.doc_id != doc_id)
-        base_docs = await database.fetch_all(query)   
+        # query = document_part.select().where(document_part.c.doc_id != doc_id)
+        stmt = document_part.select().where(
+                sqlalchemy.not_(
+                    document_part.c.doc_id == doc_id
+                )
+            )
+        print(stmt)
+        base_docs = await database.fetch_all(stmt)   
+        print(len(base_docs))
         if len(base_docs) == 0:
             raise HTTPException(status_code=404, detail="Dokumen basis kasus tidak ditemukan")
         else:
@@ -328,7 +385,16 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
 
             # design result => dataframe (doc_part_name, sim_part_name, cos_sim)
             result = docsim.CbrDocsSearch(dict_doc, dict_base)
-            res = json.loads(pd.DataFrame(result['result']).to_json(orient='index'))
+            res = json.loads(pd.DataFrame(result['result']).to_json(orient='records'))
+            # id_doc
+            # for index, row in result['result'].iterrows():
+            #     doc_part_name = await database.fetch_one(document_part.select().where())
+            #     query = case_bases.insert().values(
+            #         doc_id = doc_id,
+            #         doc_part_name = 
+
+            #     )
+            #     await databases.execute(query)
             # save case_bases to databases
             with engine.connect() as con:
                 query = '''INSERT INTO case_bases (doc_id, doc_part_name, sim_doc_id, sim_doc_part_name, cos_sim_value, config_used)
@@ -343,15 +409,22 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
                 '''
                 statement = sql_txt(query)
                 for index, row in result['result'].iterrows():
-                    values = { "doc_part_id": row[0], "sim_doc_part_id": row[1], "cos_sim_value": row[2], "config_use": config }
+                    values = { "doc_part_id": int(row[0]), "sim_doc_part_id": int(row[1]), "cos_sim_value": row[2], "config": config }
                     con.execute(statement, **values)
             reused = []
-            for df in result['reused']:
-                frame = pd.DataFrame(df)
-                reused.append(json.loads(frame.to_json(orient='index')))
+            for i in range(len(result['reused'])):
+                frame = pd.DataFrame(result['reused'][i])
+                reused.append({
+                    "title": part_names[i],
+                    "data": json.loads(frame.to_json(orient="records"))
+                })
+            
             return jsonable_encoder({
-                "retrieved": json.loads(pd.DataFrame(result['retrieved']).to_json(orient='index')),
-                "reused": reused,
-                "final_result": res
+                "detail": "Deteksi Kemiripan Dokumen dengan metode CBR berhasil",
+                "result": {
+                    "retrieved": json.loads(pd.DataFrame(result['retrieved']).to_json(orient='records')),
+                    "reused": reused,
+                    "overall": res
+                }
             })
 

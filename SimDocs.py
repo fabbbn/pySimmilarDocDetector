@@ -63,9 +63,9 @@ class SimDocs:
 
         list_retrieved = []
         list_reused = []
-        for r in reused:
-            list_retrieved.append(retrieved.shape[0])
-            list_reused.append(r.shape[0])
+        for i in range (len(reused)):
+            list_retrieved.append(grouped[i].shape[0])
+            list_reused.append(reused[i].shape[0])
         result = pd.DataFrame.from_dict({
             'doc_part_id': result['doc_part_id'],
             'sim_doc_part_id': result['sim_doc_part_id'],

@@ -26,6 +26,11 @@ for index, row in df.iterrows():
 df['idf'] = df['idf'].astype(int)
 print(df.dtypes)
 print(df.loc[ df['weight'] >= 0.3 ].reset_index().sort_values(by=['weight'], ascending=False))
+
+if not os.path.exists('./grouped-tf/sql.txt'):
+    print("file not exist, make new file")
+else:
+    print("exist")
 # arrays = []
 # arrays.append(df.iloc[df['weight'].idxmax()].to_frame().transpose())
 # arrays.append(df.iloc[df['weight'].idxmin()].to_frame().transpose())

@@ -25,7 +25,7 @@ class Vectorizer:
         for i in range (len(paths)):
             if re.search(r'.txt', paths[i]):
                 with open(paths[i], 'r') as f:
-                    token = str(f.read().strip()).split(" ")
+                    token = str(f.read().strip()).split(", ")
                     df = pd.DataFrame.from_dict({
                         'token': list(i for i in token),
                         'frequency': list(1 for i in range(len(token)))

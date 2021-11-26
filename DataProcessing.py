@@ -71,14 +71,14 @@ class DataProcessing:
             })
 
         return({
-            "Bagian Dokumen": splitted,
-            "Hasil Pra-pengolahan Teks": {
-                "Cleaning" : cleaned,
-                "Case Folding": casefold,
-                "Tokenisasi": tokenized,
-                "Stopword Removal": swremoved,
-                "Stemming": stemmed
-            }
+            "doc_parts": splitted,
+            "doc_pre_process": [
+                {"title":"Text Cleaning",  "result": cleaned},
+                {"title":"Case Folding",  "result": casefold},
+                {"title":"Tokenisasi",  "result": tokenized},
+                {"title":"Stopword Removal",  "result": swremoved},
+                {"title":"Stemming",  "result": stemmed}
+            ]
         })
 
 
@@ -94,26 +94,32 @@ class DataProcessing:
 
     
     def __tokenizeText(self, text):
-        return ( text.split(" ") )
+        temp = text.split(" ")
+        return ( ", ".join(temp) )
 
     
     def __stopwordRemoval(self, tokens):
+        token = tokens.split(", ")
         factory = StopWordRemoverFactory()
         stopword = factory.create_stop_word_remover()
 
         # Kalimat
-        swremoved = stopword.remove(" ".join(tokens))
-        return( swremoved.split(" ") )
+        swremoved = stopword.remove(" ".join(token))
+        return( ", ".join(swremoved.split(" ")) )
             
 
     def __stemmingTokens(self, tokens):
         factory = StemmerFactory()
         stemmer = factory.create_stemmer()
         stemmed = []
+        result = []
         # stemming process
-        for token in tokens:
+        for token in tokens.split(", "):
             stemmed.append(stemmer.stem(token))
-        return ( stemmed )
+        for stem in stemmed:
+            if stem:
+                result.append(stem)
+        return ( ", ".join(result) )
 
 
     

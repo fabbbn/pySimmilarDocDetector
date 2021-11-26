@@ -1,14 +1,18 @@
 -- SQLite
-delete from document_part;
+-- delete from case_bases;
+-- delete from sqlite_sequence
+-- where name = 'case_bases';
+delete from document_part
+where document_part_id in (1, 2, 3, 4, 5);
 delete from sqlite_sequence
 where name = 'document_part';
-delete from proposal;
-delete from sqlite_sequence
-where name = 'proposal';
-delete from document;
-delete from sqlite_sequence
-where name = 'document';
-delete from bag_of_words;
+-- delete from proposal;
+-- delete from sqlite_sequence
+-- where name = 'proposal';
+-- delete from document;
+-- delete from sqlite_sequence
+-- where name = 'document';
+-- delete from bag_of_words;
 -- INSERT INTO case_bases (
 --         doc_id,
 --         doc_part_name,
