@@ -296,9 +296,9 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
     vectorizer = Vectorizer()
     # work flow   
     # retrieve new document
-    query = document_part.select().where(document_part.c.doc_id == doc_id)
+    query = document_part.select().where( document_part.c.doc_id == doc_id )
     docs = await database.fetch_all(query)
-
+    
     if len(docs) == 0 : # doc_id not fond
         raise HTTPException(status_code=404, detail="Dokumen tidak ditemukan")
     else:
@@ -309,12 +309,13 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         
         tokens = vectorizer.tfGenerator(token_paths)
         
-        w = []
+        w = [] # generte tf-idf records to return
         for i in range(len(part_names)):
             w.append({
                 "chapter":part_names[i],
                 "data": json.dumps(tokens[i].to_json(orient="records"))
             })
+
         # CONDITIONAL IF FILE .CSV EXISTS
         import os
         if not (os.path.exists(output_paths[0])):
@@ -359,14 +360,12 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             dict_doc[id_doc[i]] = weights_doc[i]
 
         # retrieve all document except new document for searching
-        # query = document_part.select().where(document_part.c.doc_id != doc_id)
-        stmt = document_part.select().where(
+        query = document_part.select().where(
                 sqlalchemy.not_(
                     document_part.c.doc_id == doc_id
                 )
             )
-        print(stmt)
-        base_docs = await database.fetch_all(stmt)   
+        base_docs = await database.fetch_all(query)
         print(len(base_docs))
         if len(base_docs) == 0:
             raise HTTPException(status_code=404, detail="Dokumen basis kasus tidak ditemukan")
@@ -379,22 +378,14 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             dict_base = {}
             for i in range(len(base_docs)):
                 dict_base[id_base[i]] = weights_base[i]
+            
             # do similarity detection using CBR
             from SimDocs import SimDocs
             docsim = SimDocs()
 
             # design result => dataframe (doc_part_name, sim_part_name, cos_sim)
             result = docsim.CbrDocsSearch(dict_doc, dict_base)
-            res = json.loads(pd.DataFrame(result['result']).to_json(orient='records'))
-            # id_doc
-            # for index, row in result['result'].iterrows():
-            #     doc_part_name = await database.fetch_one(document_part.select().where())
-            #     query = case_bases.insert().values(
-            #         doc_id = doc_id,
-            #         doc_part_name = 
-
-            #     )
-            #     await databases.execute(query)
+            
             # save case_bases to databases
             with engine.connect() as con:
                 query = '''INSERT INTO case_bases (doc_id, doc_part_name, sim_doc_id, sim_doc_part_name, cos_sim_value, config_used)
@@ -411,17 +402,53 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
                 for index, row in result['result'].iterrows():
                     values = { "doc_part_id": int(row[0]), "sim_doc_part_id": int(row[1]), "cos_sim_value": row[2], "config": config }
                     con.execute(statement, **values)
+                con.close()
+
+            # retrieve document information to be returned as responses
+            with engine.connect() as con:
+                query = '''SELECT 
+                    dp.document_part_name as doc_part_name,
+                    p.proposal_title as doc_title,
+                    dp.document_part_id as doc_part_id,
+                    d.document_id as doc_id,
+                    d.document_filename as doc_filename
+                FROM document as d
+                    INNER JOIN proposal as p ON d.document_id = p.proposal_doc_id
+                    INNER JOIN document_part as dp ON dp.doc_id = d.document_id ;
+                '''
+                statement = sql_txt(query)
+                all_doc_parts = pd.DataFrame(
+                    con.execute(statement).fetchall(),
+                    index=None,
+                    columns=['doc_part_name', 'doc_title', 'doc_part_id', 'doc_id', 'doc_filename']
+                )
+                con.close()
+            
+            print(all_doc_parts)
+            
+            # merge results to document detail
+            # res = 
+            res = json.loads(pd.DataFrame(result['result']).to_json(orient='records'))
             reused = []
             for i in range(len(result['reused'])):
                 frame = pd.DataFrame(result['reused'][i])
-                reused.append({
-                    "title": part_names[i],
-                    "data": json.loads(frame.to_json(orient="records"))
-                })
+                dummy = pd.DataFrame.merge(
+                    result['reused'][i], all_doc_parts, 
+                    how='left',
+                    left_on='sim_doc_part_id',
+                    right_on='doc_part_id'
+                    )                    
+                print(frame)
+                print(dummy)
+                # reused.append({
+                #     "title": part_names[i],
+                #     "data": json.loads(frame.to_json(orient="records"))
+                # })
             
             return jsonable_encoder({
                 "detail": "Deteksi Kemiripan Dokumen dengan metode CBR berhasil",
                 "result": {
+                    "weights": w,
                     "retrieved": json.loads(pd.DataFrame(result['retrieved']).to_json(orient='records')),
                     "reused": reused,
                     "overall": res

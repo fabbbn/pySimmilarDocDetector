@@ -25,7 +25,6 @@ class SimDocs:
             'sim_doc_part_id': base_ids,
             'cos_sim_value': cos_sim
         })
-        # print(retrieved.shape)
         # reuse search result with value greater than 0.2, then revise
         # reuse => array of dataframe (doc_part_id, sim_doc_part_id, cos_sim_value)
         # revised => array of dataframe, => concat => result
@@ -42,7 +41,7 @@ class SimDocs:
         for grp in grouped:
             # print(type(grp))
             # print(grp.shape)
-            max_row = (grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
+            max_row = pd.DataFrame(grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
             del max_row['index']
             if ( grp['cos_sim_value'].max() ) >= threshold:
                 # print("get max above th")
