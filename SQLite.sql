@@ -6,14 +6,18 @@
 -- where document_part_id in (1, 2, 3, 4, 5);
 -- delete from sqlite_sequence
 -- where name = 'document_part';
-SELECT dp.document_part_name as doc_part_name,
-    p.proposal_title as doc_title,
-    dp.document_part_id as doc_part_id,
-    d.document_id as doc_id,
-    d.document_filename as doc_filename
-FROM document as d
-    INNER JOIN proposal as p ON d.document_id = p.proposal_doc_id
-    INNER JOIN document_part as dp ON dp.doc_id = d.document_id;
+-- SELECT dp.document_part_name as doc_part_name,
+--     p.proposal_title as doc_title,
+--     dp.document_part_id as doc_part_id,
+--     d.document_id as doc_id,
+--     d.document_filename as doc_filename
+-- FROM document as d
+--     INNER JOIN proposal as p ON d.document_id = p.proposal_doc_id
+--     INNER JOIN document_part as dp ON dp.doc_id = d.document_id;
+delete from proposal
+where proposal_id = 3;
+delete from document
+where document_id = 3;
 -- delete from proposal;
 -- delete from sqlite_sequence
 -- where name = 'proposal';

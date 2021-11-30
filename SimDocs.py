@@ -7,22 +7,31 @@ from sqlalchemy.sql import text as sql_txt
 
 class SimDocs:
     pass
-    def CbrDocsSearch(self, searched_vectors:dict, base_vectors:dict):
-        # retrieval => dataframe (doc_part_id, sim_doc_part_id, cos_sim_value) 
+    def CbrDocsSearch(self, searched_vectors:list, base_vectors:list):
+        # retrieval => dataframe (doc_part_id, doc_part_name, sim_doc_part_id, sim_doc_part_name, cos_sim_value)
+
         print("SimDocs.CbrDocsSearch() accessed")
         doc_ids = []
-        base_ids = []
+        sim_doc_ids = []
+        doc_name = []
+        sim_doc_name = []
         cos_sim = []
-        for doc_id, search in searched_vectors.items():
-            for base_id, base in base_vectors.items():
-                doc_ids.append(doc_id)
-                base_ids.append(base_id)
+        for search in ((searched_vectors)):
+            for base in ((base_vectors)):
+                doc_ids.append(search['doc_id'])
+                doc_name.append(search['part_name'])
+                sim_doc_ids.append(base['doc_id'])
+                sim_doc_name.append(base['part_name'])
+                wsearch = pd.DataFrame(search['weights'])
+                wbase = pd.DataFrame(base['weights'])
                 cos_sim.append(
-                    (self.__vectorsDotProduct(search, base))/((self.__vectorMagnitude(search['weight'].array))*(self.__vectorMagnitude(base['weight'].array)))
+                    (self.__vectorsDotProduct(wsearch, wbase))/((self.__vectorMagnitude(wsearch['weight'].array))*(self.__vectorMagnitude(wbase['weight'].array)))
                 )
         retrieved = pd.DataFrame.from_dict({
             'doc_part_id': doc_ids,
-            'sim_doc_part_id': base_ids,
+            'doc_part_name': doc_name,
+            'sim_doc_part_id': sim_doc_ids,
+            'sim_doc_part_name': sim_doc_name,
             'cos_sim_value': cos_sim
         })
         # reuse search result with value greater than 0.2, then revise
@@ -67,16 +76,18 @@ class SimDocs:
             list_reused.append(reused[i].shape[0])
         result = pd.DataFrame.from_dict({
             'doc_part_id': result['doc_part_id'],
+            'doc_part_name': result['doc_part_name'],
             'sim_doc_part_id': result['sim_doc_part_id'],
+            'sim_doc_part_name': result['sim_doc_part_name'],
             'cos_sim_value': result['cos_sim_value'],
             'n_of_retrieved': list_retrieved,
             'n_of_reused': list_reused
         })
         # print(result)
         return {
-            "retrieved": retrieved,
-            "reused": reused,
-            "result": result
+            "retrieved": grouped, # array of dataframes
+            "reused": reused, # array of dataframes
+            "result": result # dataframe
         }
 
 
