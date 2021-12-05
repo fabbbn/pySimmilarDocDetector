@@ -1,10 +1,10 @@
 from fastapi.middleware.cors import CORSMiddleware
-from os import times
 from sqlalchemy.sql import text as sql_txt
 from sqlalchemy.sql.schema import ForeignKey
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import ORJSONResponse, StreamingResponse
 from fastapi.encoders import jsonable_encoder
+from TimeStamp import TimeStamp as ts
 from typing import List, Text
 from pydantic import BaseModel
 import databases
@@ -189,7 +189,6 @@ async def FormHandler(
     try:
         import uuid
         import aiofiles
-        from TimeStamp import TimeStamp as ts
 
         # upload file
         fname = (uuid.uuid4().hex)+'.pdf'
@@ -250,14 +249,16 @@ async def DataGeneration(doc_id: int):
     else:        
         # extracting file
         import fitz
-        from TimeStamp import TimeStamp as ts
+        
 
         docs = fitz.open(doc[1])
         text = ""
         for page in docs:
             text = text + page.get_text("text") + "\n"  
+        print(text)
         
         print("Extracting document {0} success @ {1}\n{2} characters extracted.\n".format(doc[2], ts.stamp(), len(text)))
+
         # preprocessing text
         from DataProcessing import DataProcessing
 
@@ -270,48 +271,50 @@ async def DataGeneration(doc_id: int):
 
         result = DataProcessor.preprocessingText(splitted_doc)
 
-        # save every parts' pre processing results
+        #  check if parted docs exist in server
+        parted_doc = await database.fetch_all(document_part.select().where(document_part.c.doc_id==doc_id))
+        if (len(parted_doc)==0): # save document_parts to database      
+            # save every parts' pre processing results
+            print("saving document parts into server...")
+            tokens = result["doc_pre_process"][4]["result"]
+            for token in tokens:
+                # save into .txt
+                writes=""
+                filename = "{0}_{1}.txt".format(re.sub(r'.pdf', '', doc[2]), token['title'])
+                token_name = "{0}_{1}.csv".format(re.sub(r'.pdf', '', doc[2]), token['title'])
+                file_path = './chapter/'+filename
+                token_path = './grouped-tf/'+token_name
+                
+                with open(file_path, 'w') as file:
+                    writes = writes + (((token['content'])))
+                    file.write(writes)
+                file.close()
+
+                # insert document_parts into database
+                insertQuery = document_part.insert().values(
+                    document_part_path = file_path,
+                    document_part_filename = filename,
+                    document_part_name = token['title'],
+                    document_part_tokens = token_path,
+                    doc_id = doc_id
+                )
+                await database.execute(insertQuery)
+
+                print("Saving splitted document {0} success @ {1}".format(filename, ts.stamp()))
         
-        tokens = result["doc_pre_process"][4]["result"]
-        for token in tokens:
-            # save into .txt
-            writes=""
-            filename = "{0}_{1}.txt".format(re.sub(r'.pdf', '', doc[2]), token['title'])
-            token_name = "{0}_{1}.csv".format(re.sub(r'.pdf', '', doc[2]), token['title'])
-            file_path = './chapter/'+filename
-            token_path = './grouped-tf/'+token_name
-            
-            with open(file_path, 'w') as file:
-                writes = writes + (((token['content'])))
-                file.write(writes)
-            file.close()
-
-            # insert document_parts into database
-            insertQuery = document_part.insert().values(
-                document_part_path = file_path,
-                document_part_filename = filename,
-                document_part_name = token['title'],
-                document_part_tokens = token_path,
-                doc_id = doc_id
-            )
-            await database.execute(insertQuery)
-
-            print("Saving splitted document {0} success @ {1}".format(filename, ts.stamp()))
-
         return jsonable_encoder({
-            "detail" : "Pemrosesan Dokumen menjadi data siap olah berhasil",
-            "result": result
-        })
-
+                "detail" : "Pemrosesan Dokumen menjadi data siap olah berhasil",
+                "result": result
+            })
         # redirect to vectorization route
         # url= '/similarity-cbr/document/'+str(doc_id)
         # return RedirectResponse(url)
 
 
-@app.get("/similarity-cbr/document/{doc_id}")
+@app.post("/similarity-cbr/document/{doc_id}")
 async def SimiarityCbr(doc_id: int, config: str = Form(...)):
-    from Vectorizer import Vectorizer
-    vectorizer = Vectorizer()
+    import time
+    start_time = time.time()
     # work flow   
     # retrieve new document
     query = document_part.select().where( document_part.c.doc_id == doc_id )
@@ -325,12 +328,15 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         output_paths = list(row[5] for row in docs)
         part_names = list(row[3] for row in docs)
         
+        from Vectorizer import Vectorizer
+        vectorizer = Vectorizer()
         tokens = vectorizer.tfGenerator(token_paths)
 
         # CONDITIONAL IF FILE .CSV EXISTS
         import os
         if not (os.path.exists(output_paths[0])):
             # saving token into csv for faster computation
+            print("saving data to the server...")
             for i in range (len(tokens)):
                 tokens[i].to_csv(output_paths[i], index=None)
 
@@ -504,6 +510,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
                 left_on='sim_doc_part_id',
                 right_on='doc_part_id',
             )
+            overall["config_used"] = list(config for i in range(overall.shape[0]))
             overall.drop(
                 [
                     'doc_part_id_x',
@@ -514,7 +521,8 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
                 axis=1,
                 inplace=True
             )
-            
+            exc_time = time.time()-start_time
+            overall["exc_time"] = list(exc_time for i in range(overall.shape[0]))
             return jsonable_encoder({
                 "detail": "Deteksi Kemiripan Dokumen dengan metode CBR berhasil",
                 "result": {

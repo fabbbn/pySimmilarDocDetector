@@ -1,11 +1,11 @@
 -- SQLite
--- delete from case_bases;
--- delete from sqlite_sequence
--- where name = 'case_bases';
--- delete from document_part
--- where document_part_id in (1, 2, 3, 4, 5);
--- delete from sqlite_sequence
--- where name = 'document_part';
+delete from case_bases;
+delete from sqlite_sequence
+where name = 'case_bases';
+delete from document_part;
+-- where document_part_id in (21, 22, 23, 24, 25);
+delete from sqlite_sequence
+where name = 'document_part';
 -- SELECT dp.document_part_name as doc_part_name,
 --     p.proposal_title as doc_title,
 --     dp.document_part_id as doc_part_id,
@@ -14,17 +14,19 @@
 -- FROM document as d
 --     INNER JOIN proposal as p ON d.document_id = p.proposal_doc_id
 --     INNER JOIN document_part as dp ON dp.doc_id = d.document_id;
-delete from proposal
-where proposal_id = 3;
-delete from document
-where document_id = 3;
--- delete from proposal;
--- delete from sqlite_sequence
--- where name = 'proposal';
--- delete from document;
--- delete from sqlite_sequence
--- where name = 'document';
--- delete from bag_of_words;
+delete from proposal;
+-- where proposal_id = 3;
+delete from document;
+-- where document_id = 3;
+-- delete from proposal
+-- where proposal_doc_id = 5;
+delete from sqlite_sequence
+where name = 'proposal';
+-- delete from document
+-- where document_id = 5;
+delete from sqlite_sequence
+where name = 'document';
+delete from bag_of_words;
 -- INSERT INTO case_bases (
 --         doc_id,
 --         doc_part_name,

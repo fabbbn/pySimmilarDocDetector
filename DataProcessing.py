@@ -12,9 +12,9 @@ class DataProcessing:
         idxs = []
         exps = [
             r'RANGKUMAN',
-            r'BAB\s*\w*\s*LATAR\s*BELAKANG',
-            r'BAB\s*\w*\s*KAJIAN\s*TEORI',
-            r'BAB\s*\w*\s*METODE\s*PENELITIAN'
+            r'BAB\s*.*\s*LATAR\s*BELAKANG',
+            r'BAB\s*.*\s*KAJIAN\s*TEORI',
+            r'BAB\s*.*\s*METODE\s*PENELITIAN'
         ]
         parts = [
             "RANGKUMAN",
@@ -23,6 +23,7 @@ class DataProcessing:
             "METODE PENELITIAN"
         ]
         # // looks for index of each part of document (for slicing)
+        print(idxs)
         for exp in exps:
             idx = re.search(exp, text).start()
             idxs.append(idx)
@@ -80,11 +81,12 @@ class DataProcessing:
                 {"title":"Stemming",  "result": stemmed}
             ]
         })
-
+# [^A-Za-z0-9_\s]
 
     def __cleaningText(self, text):
-        cleaned = re.sub(r'[^\w\s]', ' ', text)
-        cleaned = re.sub(r'\d+\s', ' ', cleaned)
+        # cleaned = re.sub(r'[^\w\s]', ' ', text)
+        cleaned = re.sub(r'[^A-Za-z0-9_\s]', ' ', text)
+        cleaned = re.sub(r'\b\d+\b', ' ', cleaned)
         cleaned = re.sub(r'\s{1,}', ' ', cleaned)
         return ( cleaned.strip() )
 
