@@ -5,7 +5,7 @@ import re
 class Vectorizer:
     pass
 
-    def IdfGenerator(self, bow, N, config):
+    def idfGenerator(self, bow, N, config):
         # retrive all bobot dari bag of words dengan konfigurasi
         # return idf_list = 
         if config == "manning":

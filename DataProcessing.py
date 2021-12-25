@@ -36,7 +36,6 @@ class DataProcessing:
             })
         return result
 
-    
     def preprocessingText(self, splitted):
         print("DataProcessing.preprocessingText() accessed")
         cleaned = []
@@ -47,38 +46,38 @@ class DataProcessing:
         for part in splitted:
             temp = self.__cleaningText(part['text'])
             cleaned.append({
-                "title":part['chapter'],
+                "title": part['chapter'],
                 "content": temp
             })
             temp = self.__casefoldingText(temp)
             casefold.append({
-                "title":part['chapter'],
+                "title": part['chapter'],
                 "content": temp
             })
             temp = self.__tokenizeText(temp)
             tokenized.append({
-                "title":part['chapter'],
+                "title": part['chapter'],
                 "content": temp
             })
             temp = self.__stopwordRemoval(temp)
             swremoved.append({
-                "title":part['chapter'],
+                "title": part['chapter'],
                 "content": temp
             })
             temp = self.__stemmingTokens(temp)
             stemmed.append({
-                "title":part['chapter'],
+                "title": part['chapter'],
                 "content": temp
             })
 
         return({
             "doc_parts": splitted,
             "doc_pre_process": [
-                {"title":"Text Cleaning",  "result": cleaned},
-                {"title":"Case Folding",  "result": casefold},
-                {"title":"Tokenisasi",  "result": tokenized},
-                {"title":"Stopword Removal",  "result": swremoved},
-                {"title":"Stemming",  "result": stemmed}
+                {"title": "Text Cleaning",  "result": cleaned},
+                {"title": "Case Folding",  "result": casefold},
+                {"title": "Tokenisasi",  "result": tokenized},
+                {"title": "Stopword Removal",  "result": swremoved},
+                {"title": "Stemming",  "result": stemmed}
             ]
         })
 # [^A-Za-z0-9_\s]
@@ -88,27 +87,30 @@ class DataProcessing:
         cleaned = re.sub(r'[^A-Za-z0-9_\s]', ' ', text)
         cleaned = re.sub(r'\b\d+\b', ' ', cleaned)
         cleaned = re.sub(r'\s{1,}', ' ', cleaned)
-        return ( cleaned.strip() )
+        return (cleaned.strip())
 
-    
     def __casefoldingText(self, text):
-        return ( text.lower() )
+        return (text.lower())
 
-    
     def __tokenizeText(self, text):
         temp = text.split(" ")
-        return ( ", ".join(temp) )
+        return (", ".join(temp))
 
-    
     def __stopwordRemoval(self, tokens):
         token = tokens.split(", ")
         factory = StopWordRemoverFactory()
         stopword = factory.create_stop_word_remover()
+        # karakter minimal
+        min_length = 2
+        defined_sw_list = [
+            "et", "al", "ibid", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"
+        ]
 
         # Kalimat
-        swremoved = stopword.remove(" ".join(token))
-        return( ", ".join(swremoved.split(" ")) )
-            
+        removed = stopword.remove(" ".join(token))
+        swremoved = list(word for word in removed.split(" ") if len(
+            word) > min_length and word not in defined_sw_list)
+        return(", ".join(swremoved))
 
     def __stemmingTokens(self, tokens):
         factory = StemmerFactory()
@@ -121,7 +123,4 @@ class DataProcessing:
         for stem in stemmed:
             if stem:
                 result.append(stem)
-        return ( ", ".join(result) )
-
-
-    
+        return (", ".join(result))
