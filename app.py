@@ -280,15 +280,11 @@ async def DataGeneration(doc_id: int):
         # preprocessing text
         from DataProcessing import DataProcessing
 
-        DataProcessor = DataProcessing()
-        splitted_doc = DataProcessor.splitDocument(text)
-        splitted_doc.insert(0,  {
-            "chapter": "JUDUL",
-            "text": prop[1]
-        })
+        title = prop[1]
+        DataProcessor = DataProcessing(text, title)
 
-        result = DataProcessor.preprocessingText(splitted_doc)
-
+        result = DataProcessor.preprocessingText()
+        # return({"data": result})
         #  check if parted docs exist in server
         parted_doc = await database.fetch_all(document_part.select().where(document_part.c.doc_id == doc_id))
         if (len(parted_doc) == 0):  # save document_parts to database
@@ -347,8 +343,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         part_names = list(row[3] for row in docs)
 
         from Vectorizer import Vectorizer
-        vectorizer = Vectorizer()
-        tokens = vectorizer.tfGenerator(token_paths)
+        tokens = Vectorizer.tfGenerator(token_paths)
 
         # CONDITIONAL IF FILE .CSV EXISTS
         import os
@@ -385,11 +380,12 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         query = document_part.select()
         n = len(await database.fetch_all(query))
 
-        # with bow, count idf of every bow
-        idf_dict = vectorizer.idfGenerator(bow, n, config)
+        # create object vecrotizer for test docs
+        vectorizer_test = Vectorizer(tokens, bow, n, config)
 
         # weight used for retrieval (searched doc)
-        weights_doc = vectorizer.tfIdf(tokens, idf_dict)
+        weights_doc = vectorizer_test.tfIdf()
+
         w = []  # generte tf-idf records to return
         for i in range(len(part_names)):
             w.append({
@@ -414,16 +410,17 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             )
         )
         base_docs = await database.fetch_all(query)
-        print(len(base_docs))
+        print("Retrieved {} document parts as case bases".format(len(base_docs)))
         if len(base_docs) == 0:
             raise HTTPException(
                 status_code=404, detail="Dokumen basis kasus tidak ditemukan")
         else:
             # use path of every document
-            base_tokens = vectorizer.tfGenerator(
+            base_tokens = Vectorizer.tfGenerator(
                 list(row[5] for row in base_docs))  # list of base document's path
             # generate weight of all base docs
-            weights_base = vectorizer.tfIdf(base_tokens, idf_dict)
+            vectorizer_base = Vectorizer(base_tokens, bow, n, config)
+            weights_base = vectorizer_base.tfIdf()
             id_base = list(row[0] for row in base_docs)
             dict_base = []
 
@@ -434,15 +431,15 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
                     "weights": weights_base[i]
                 })
 
-            # do similarity detection using CBR
+            # similarity detection using CBR
             from SimDocs import SimDocs
-            docsim = SimDocs()
+            docsim = SimDocs(dict_doc, dict_base)
 
-            # design result => dataframe (doc_part_id, doc_part_name, sim_doc_part_id, sim_doc_part_name, cos_sim_value)
-            result = docsim.CbrDocsSearch(dict_doc, dict_base)
+            # design result => dict[str, dataframe (doc_part_id, doc_part_name, sim_doc_part_id, sim_doc_part_name, cos_sim_value)
+            result = docsim.CbrDocsSearch()
 
             # save case_bases to databases
-            exc_time = time.time()-start_time
+            exc_time = time.time() - start_time
             with engine.connect() as con:
                 query = '''INSERT INTO case_bases (doc_id, doc_part_name, sim_doc_id, sim_doc_part_name, cos_sim_value, config_used, retrieved, reused, exc_time)
                     VALUES (
@@ -565,9 +562,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
             )
             overall["exc_time"] = list(
                 exc_time for i in range(overall.shape[0]))
-            # save result
-            # with pd.ExcelWriter('./result/overall-{0}-{1}.xlsx'.format(str(doc_id), str(config))) as writer:
-            #     pd.DataFrame(overall).to_excel(writer, float_format="%.8f")
+
             # save weights to excel
             with pd.ExcelWriter('./weighting_results/weighted-{0}-{1}.xlsx'.format(str(doc_id), str(config))) as writer:
                 for i in range(len(weights_doc)):

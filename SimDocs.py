@@ -6,18 +6,24 @@ from sqlalchemy.sql import text as sql_txt
 
 
 class SimDocs:
-    pass
-    def CbrDocsSearch(self, searched_vectors:list, base_vectors:list):
-        # retrieval => dataframe (doc_part_id, doc_part_name, sim_doc_part_id, sim_doc_part_name, cos_sim_value)
+    # pass
+    __base_vector = []
+    __searched_vector = []
 
+    def __init__(self, searched_vectors: list, base_vectors: list) -> None:
+        self.__base_vector = base_vectors
+        self.__searched_vector = searched_vectors
+
+    def CbrDocsSearch(self) -> dict:
+        # retrieval => dataframe (doc_part_id, doc_part_name, sim_doc_part_id, sim_doc_part_name, cos_sim_value)
         print("SimDocs.CbrDocsSearch() accessed")
         doc_ids = []
         sim_doc_ids = []
         doc_name = []
         sim_doc_name = []
         cos_sim = []
-        for search in ((searched_vectors)):
-            for base in ((base_vectors)):
+        for search in ((self.__searched_vector)):
+            for base in ((self.__base_vector)):
                 doc_ids.append(search['doc_id'])
                 doc_name.append(search['part_name'])
                 sim_doc_ids.append(base['doc_id'])
@@ -25,7 +31,8 @@ class SimDocs:
                 wsearch = pd.DataFrame(search['weights'])
                 wbase = pd.DataFrame(base['weights'])
                 cos_sim.append(
-                    (self.__vectorsDotProduct(wsearch, wbase))/((self.__vectorMagnitude(wsearch['weight'].array))*(self.__vectorMagnitude(wbase['weight'].array)))
+                    (self.__vectorsDotProduct(wsearch, wbase))/((self.__vectorMagnitude(
+                        wsearch['weight'].array))*(self.__vectorMagnitude(wbase['weight'].array)))
                 )
         retrieved = pd.DataFrame.from_dict({
             'doc_part_id': doc_ids,
@@ -39,22 +46,25 @@ class SimDocs:
         # revised => array of dataframe, => concat => result
         threshold = 0.2
         temp = retrieved
-        ids = temp.groupby(['doc_part_id']).nunique().reset_index()['doc_part_id'].array
+        ids = temp.groupby(['doc_part_id']).nunique().reset_index()[
+            'doc_part_id'].array
         grouped = []
         reused = []
         revised = []
         for id in ids:
             grouped.append(
-                retrieved[retrieved['doc_part_id']==id].reset_index()
+                retrieved[retrieved['doc_part_id'] == id].reset_index()
             )
         for grp in grouped:
             # print(type(grp))
             # print(grp.shape)
-            max_row = pd.DataFrame(grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
+            max_row = pd.DataFrame(
+                grp.iloc[grp['cos_sim_value'].idxmax()].to_frame().transpose())
             del max_row['index']
-            if ( grp['cos_sim_value'].max() ) >= threshold:
+            if (grp['cos_sim_value'].max()) >= threshold:
                 # print("get max above th")
-                reuse_rows = grp.loc[ grp['cos_sim_value'] >= threshold ].reset_index().sort_values(by=['cos_sim_value'], ascending=False)
+                reuse_rows = grp.loc[grp['cos_sim_value'] >= threshold].reset_index(
+                ).sort_values(by=['cos_sim_value'], ascending=False)
                 reused.append(
                     reuse_rows.iloc[:, 2:]
                 )
@@ -71,7 +81,7 @@ class SimDocs:
 
         list_retrieved = []
         list_reused = []
-        for i in range (len(reused)):
+        for i in range(len(reused)):
             list_retrieved.append(grouped[i].shape[0])
             list_reused.append(reused[i].shape[0])
         result = pd.DataFrame.from_dict({
@@ -85,21 +95,19 @@ class SimDocs:
         })
         # print(result)
         return {
-            "retrieved": grouped, # array of dataframes
-            "reused": reused, # array of dataframes
-            "result": result # dataframe
+            "retrieved": grouped,  # array of dataframes
+            "reused": reused,  # array of dataframes
+            "result": result  # dataframe
         }
 
-
-    def __vectorMagnitude(self, weights):
+    def __vectorMagnitude(self, weights) -> float:
         # |a| = sqrt(sum(ai^2))
         result = 0
         for weight in weights:
             result = result + math.pow(weight, 2)
         return math.sqrt(result)
 
-
-    def __vectorsDotProduct(self, df_weights1:pd.DataFrame, df_weights2:pd.DataFrame):
+    def __vectorsDotProduct(self, df_weights1: pd.DataFrame, df_weights2: pd.DataFrame):
         # params: 2 dataframes (token, freq, idf, weight)
         # a.b = (a1*b1)+(a2*b2)+...+(an*bn)
         result = 0
@@ -111,8 +119,9 @@ class SimDocs:
             b = df_weights1
 
         for idx, row in a.iterrows():
-            # if both token exist, result = result + (ai*bi), 
+            # if both token exist, result = result + (ai*bi),
             # if one of them is not exist, then the value is automatically be 0 (zero)
-            if b.loc[b['token']==row[0]]['weight'].any():
-                result = result + (row[3] * (b.loc[b['token']==row[0]]['weight'].item()))
+            if b.loc[b['token'] == row[0]]['weight'].any():
+                result = result + \
+                    (row[3] * (b.loc[b['token'] == row[0]]['weight'].item()))
         return result
