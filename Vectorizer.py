@@ -3,7 +3,6 @@ from os import sep
 from databases.core import Database
 import pandas as pd
 import re
-
 from pandas.core.frame import DataFrame
 
 

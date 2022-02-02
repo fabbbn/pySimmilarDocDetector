@@ -268,7 +268,8 @@ async def DataGeneration(doc_id: int):
         # extracting file
         import fitz
 
-        docs = fitz.open(doc[1])
+        doc_path = doc[1]
+        docs = fitz.open(doc_path)
         text = ""
         for page in docs:
             text = text + page.get_text("text") + "\n"
@@ -283,46 +284,50 @@ async def DataGeneration(doc_id: int):
         title = prop[1]
         DataProcessor = DataProcessing(text, title)
 
-        result = DataProcessor.preprocessingText()
-        # return({"data": result})
-        #  check if parted docs exist in server
-        parted_doc = await database.fetch_all(document_part.select().where(document_part.c.doc_id == doc_id))
-        if (len(parted_doc) == 0):  # save document_parts to database
-            # save every parts' pre processing results
-            print("saving document parts into server...")
-            tokens = result["doc_pre_process"][4]["result"]
-            for token in tokens:
-                # save into .txt
-                writes = ""
-                filename = "{0}_{1}.txt".format(
-                    re.sub(r'.pdf', '', doc[2]), token['title'])
-                token_name = "{0}_{1}.csv".format(
-                    re.sub(r'.pdf', '', doc[2]), token['title'])
-                file_path = './chapter/'+filename
-                token_path = './grouped-tf/'+token_name
+        valid, res = DataProcessor.preprocessingText()
+        if valid:
+            result = res
+            #  check if parted docs exist in server
+            parted_doc = await database.fetch_all(document_part.select().where(document_part.c.doc_id == doc_id))
+            if (len(parted_doc) == 0):  # save document_parts to database
+                # save every parts' pre processing results
+                print("saving document parts into server...")
+                tokens = result["doc_pre_process"][4]["result"]
+                for token in tokens:
+                    # save into .txt
+                    writes = ""
+                    filename = "{0}_{1}.txt".format(
+                        re.sub(r'.pdf', '', doc[2]), token['title'])
+                    token_name = "{0}_{1}.csv".format(
+                        re.sub(r'.pdf', '', doc[2]), token['title'])
+                    file_path = './chapter/'+filename
+                    token_path = './grouped-tf/'+token_name
 
-                with open(file_path, 'w') as file:
-                    writes = writes + (((token['content'])))
-                    file.write(writes)
-                file.close()
+                    with open(file_path, 'w') as file:
+                        writes = writes + (((token['content'])))
+                        file.write(writes)
+                    file.close()
 
-                # insert document_parts into database
-                insertQuery = document_part.insert().values(
-                    document_part_path=file_path,
-                    document_part_filename=filename,
-                    document_part_name=token['title'],
-                    document_part_tokens=token_path,
-                    doc_id=doc_id
-                )
-                await database.execute(insertQuery)
+                    # insert document_parts into database
+                    insertQuery = document_part.insert().values(
+                        document_part_path=file_path,
+                        document_part_filename=filename,
+                        document_part_name=token['title'],
+                        document_part_tokens=token_path,
+                        doc_id=doc_id
+                    )
+                    await database.execute(insertQuery)
 
-                print(
-                    "Saving splitted document {0} success @ {1}".format(filename, ts.stamp()))
+                    print(
+                        "Saving splitted document {0} success @ {1}".format(filename, ts.stamp()))
 
-        return jsonable_encoder({
-            "detail": "Pemrosesan Dokumen menjadi data siap olah berhasil",
-            "result": result
-        })
+            return jsonable_encoder({
+                "detail": "Pemrosesan Dokumen menjadi data siap olah berhasil",
+                "result": result
+            })
+        else:
+            raise HTTPException(
+                status_code=404, detail="Pemrosesan dokumen gagal. Pastikan penulisan Subbab Dokumen anda sudah Valid")
 
 
 @app.post("/similarity-cbr/document/{doc_id}")
@@ -386,7 +391,7 @@ async def SimiarityCbr(doc_id: int, config: str = Form(...)):
         # weight used for retrieval (searched doc)
         weights_doc = vectorizer_test.tfIdf()
 
-        w = []  # generte tf-idf records to return
+        w = []  # generate tf-idf records to return
         for i in range(len(part_names)):
             w.append({
                 "chapter": part_names[i],
